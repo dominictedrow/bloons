@@ -66,10 +66,38 @@ class Frame:
         return bytes(data), Q.CGImageGetBytesPerRow(self.image)
 
     def save_png(self, path, image=None):
-        url = Q.CFURLCreateWithFileSystemPath(None, str(path), Q.kCFURLPOSIXPathStyle, False)
-        dest = Q.CGImageDestinationCreateWithURL(url, "public.png", 1, None)
-        Q.CGImageDestinationAddImage(dest, image or self.image, None)
-        return bool(Q.CGImageDestinationFinalize(dest))
+        """Write the frame (or another CGImage) as a zlib-compressed RGB PNG. macOS's own PNG
+        writer barely compresses (~7.5 MB per 2x frame); this gives ~2-3 MB."""
+        Path(path).write_bytes(png_bytes(image or self.image))
+        return True
+
+def png_bytes(image, level=9):
+    """CGImage -> PNG bytes (8-bit RGB, no alpha). Redraws into a known RGBX layout first, so
+    it works for any source pixel format."""
+    import struct
+    import zlib
+    w, h = Q.CGImageGetWidth(image), Q.CGImageGetHeight(image)
+    ctx = Q.CGBitmapContextCreate(None, w, h, 8, w * 4, Q.CGColorSpaceCreateDeviceRGB(),
+                                  Q.kCGImageAlphaNoneSkipLast)
+    Q.CGContextDrawImage(ctx, Q.CGRectMake(0, 0, w, h), image)
+    rgbx = bytes(Q.CGDataProviderCopyData(Q.CGImageGetDataProvider(Q.CGBitmapContextCreateImage(ctx))))
+    raw = bytearray()
+    for y in range(h):
+        row = rgbx[y * w * 4:(y + 1) * w * 4]
+        rgb = bytearray(w * 3)
+        rgb[0::3], rgb[1::3], rgb[2::3] = row[0::4], row[1::4], row[2::4]
+        raw += b"\x00" + rgb
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(bytes(raw), level)) + chunk(b"IEND", b""))
+
+
+def load_png(path):
+    """PNG file -> CGImage (for offline tests on fixtures)."""
+    url = Q.CFURLCreateWithFileSystemPath(None, str(path), Q.kCFURLPOSIXPathStyle, False)
+    return Q.CGImageSourceCreateImageAtIndex(Q.CGImageSourceCreateWithURL(url, None), 0, None)
 
 
 def find_window(owner_substr="bloons"):
@@ -112,6 +140,14 @@ class Game:
         self.bounds = self._read_bounds()
         return self.bounds
 
+    @staticmethod
+    def screen_locked():
+        """True while the Mac is locked or the display is asleep. Captures then come back
+        plain white and input is ignored (seen 2026-11-04 when the Mac idled into its lock
+        screen mid-run). Run the bot under `caffeinate -d` to keep the display awake."""
+        d = Q.CGSessionCopyCurrentDictionary() or {}
+        return bool(d.get("CGSSessionScreenIsLocked")) or bool(Q.CGDisplayIsAsleep(Q.CGMainDisplayID()))
+
     def size_ok(self):
         """Is the window at the calibrated size (data/ui.json)?"""
         exp = UI["window"]["expected_pt"]
@@ -128,6 +164,8 @@ class Game:
 
     def ensure_front(self, timeout=2.0):
         """Bring the game to the front; True once it is. Input is ignored otherwise."""
+        if self.screen_locked():
+            return False
         if self.is_front():
             return True
         app = NSRunningApplication.runningApplicationWithProcessIdentifier_(self.pid)
@@ -165,7 +203,9 @@ class Game:
     # --- capture ------------------------------------------------------------------------
     def grab(self):
         """Capture the game window (works while covered). None if it can't be captured
-        (e.g. minimized)."""
+        (minimized, or the screen is locked)."""
+        if self.screen_locked():
+            return None
         img = Q.CGWindowListCreateImage(Q.CGRectNull, Q.kCGWindowListOptionIncludingWindow, self.wid,
                                         Q.kCGWindowImageBoundsIgnoreFraming)
         if img is None:

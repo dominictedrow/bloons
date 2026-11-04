@@ -101,4 +101,11 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - Vision OCR needs a model load on its first call (~400 ms); after that it's ~15 ms per field on 2× crops. The round box was widened to x 1050 so two-digit rounds (`12/40`) fit.
   - The game does **not** pause itself on focus loss. The earlier "found paused" was the Esc sent by the feasibility script.
   - Defeat screen: "DEFEAT", round reached, Bloons Leaked, with buttons Home / Restart / Review Map / Continue ($100). Restart asks for confirmation (Cancel / Restart). Fixtures are saved in `bloons/data/fixtures/`.
+- 2026-11-04 — **Fixture collection (step 1.2)**, from a scripted Easy run on Monkey Meadow:
+  - **When the upgrade panel opens on the right, the round counter moves left**, to about x 810–880 pt instead of 1100–1180. HUD OCR must either read the HUD with the panel closed or know about the shifted position. With the panel on the left, lives and money move right instead (`upgrade_panel_left.png`).
+  - **Game hint banner:** with "Game Hints" on, a blue tip banner appears at the bottom centre of the map for a few seconds. It may block clicks there. Consider turning hints off in Settings for bot runs.
+  - Unaffordable towers show a red price and a greyed icon in the shop, which gives a free affordability signal.
+  - **Screen lock / display sleep:** the Mac idled into its lock screen mid-run (synthetic input doesn't count as user activity). Window capture then returns solid white and input is ignored. Fixes: `Game.screen_locked()` (`grab()` returns None and `ensure_front()` returns False while locked), and run the bot under `caffeinate -dis`.
+  - A simple scripted build held Easy Monkey Meadow at 200 lives through at least round 35: 2 Dart, Tack 3-0-1, Ninja 3-0-1, Bomb 0-4-0, Super 2-0-0.
+  - Menus: Home → Play (map grid, paged) → map → difficulty (Easy/Medium/Hard) → mode (Standard / Primary Only / Deflation / Sandbox) → game. The home and difficulty screens show player names, so they aren't saved as fixtures (the repo is on GitHub).
 
