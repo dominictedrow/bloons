@@ -5,7 +5,7 @@
 **Last handoff:** [handoffs/012-2026-11-04.md](handoffs/012-2026-11-04.md)
 
 ## Next action
-Finish step 1.2 by capturing the victory screen: rerun the scripted build (see handoff 011/012) under `caffeinate -dis`, saving every frame once the HUD disappears, then add a `victory` crop to `bloons/data/fixtures/crops.json`, run `scripts/make_crops.py`, and tick 1.2. Then step 1.3 (HUD OCR + tests against the crops' `truth` values).
+Finish step 1.2 by capturing the victory screen: rerun the scripted build (see handoff 011/012) with the Mac's lid open, saving every frame once the HUD disappears, then add a `victory` crop to `bloons/data/fixtures/crops.json`, run `scripts/make_crops.py`, and tick 1.2. Then step 1.3 (HUD OCR + tests against the crops' `truth` values).
 
 ## Open questions
 - `drag()` is untested in the game (1.2+, when a feature needs it)

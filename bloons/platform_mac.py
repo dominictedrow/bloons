@@ -143,8 +143,7 @@ class Game:
     @staticmethod
     def screen_locked():
         """True while the Mac is locked or the display is asleep. Captures then come back
-        plain white and input is ignored (seen 2026-11-04 when the Mac idled into its lock
-        screen mid-run). Run the bot under `caffeinate -d` to keep the display awake."""
+        plain white and input is ignored (seen 2026-11-04 when the lid was closed mid-run)."""
         d = Q.CGSessionCopyCurrentDictionary() or {}
         return bool(d.get("CGSSessionScreenIsLocked")) or bool(Q.CGDisplayIsAsleep(Q.CGMainDisplayID()))
 
