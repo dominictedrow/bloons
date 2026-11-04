@@ -82,8 +82,8 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [ ] 1.5 Round-state + outcome detection + offline tests
 
 ## Phase 2 — Static game data
-- [ ] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water
-- [ ] 2.2 `heroes.json`: cost, level-up costs, abilities by level
+- [ ] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water — *costs, upgrade names and hotkeys done via `scripts/fetch_wiki_data.py`; range/abilities/footprint/land-water still to add*
+- [ ] 2.2 `heroes.json`: cost, level-up costs, abilities by level — *cost + xp_scale done; level-up costs and abilities still to add*
 - [ ] 2.3 `rounds.json`: Standard rounds 1–140 (types, counts, properties)
 - [x] 2.4 Cost helper `cost(base, difficulty)` + crosspath rule `upgrade_allowed(tiers, path)` + tests
 - [ ] 2.5 Stamp the game version. Spot-check 10 costs against the in-game panel

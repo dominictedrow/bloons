@@ -12,6 +12,16 @@ def test_cost():
     assert [cost(200, d) for d in ("easy", "medium", "hard", "impoppable")] == [170, 200, 215, 240]
     assert cost(220, "easy") == 185  # 187 -> 185
     assert cost(140, "easy") == 120  # 119 -> 120
+    assert cost(50, "easy") == 40    # 42.5 tie -> even multiple
+    assert cost(150, "easy") == 130  # 127.5 tie -> even multiple
+
+
+def test_tower_data():
+    import json
+    towers = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/towers.json").read_text())["towers"]
+    assert towers["dart_monkey"]["cost"] == 200
+    for t in towers.values():
+        assert len(t["upgrades"]) == 3 and all(len(p) == 5 and all(u["cost"] > 0 for u in p) for p in t["upgrades"])
 
 
 def test_upgrade_allowed():
@@ -26,4 +36,5 @@ def test_upgrade_allowed():
 if __name__ == "__main__":
     test_cost()
     test_upgrade_allowed()
+    test_tower_data()
     print("ok")

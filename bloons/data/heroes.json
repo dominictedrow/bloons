@@ -1,0 +1,100 @@
+{
+ "_meta": {
+  "source": "bloonswiki.com Cargo (btd6_towers, btd6_upgrades, btd6_heroes)",
+  "fetched": "2026-11-03",
+  "game_version": null,
+  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties"
+ },
+ "heroes": {
+  "admiral_brickell": {
+   "name": "Admiral Brickell",
+   "cost": 900,
+   "xp_scale": 1.425
+  },
+  "adora": {
+   "name": "Adora",
+   "cost": 1000,
+   "xp_scale": 1.71
+  },
+  "benjamin": {
+   "name": "Benjamin",
+   "cost": 1200,
+   "xp_scale": 1.5
+  },
+  "captain_churchill": {
+   "name": "Captain Churchill",
+   "cost": 2000,
+   "xp_scale": 1.71
+  },
+  "corvus": {
+   "name": "Corvus",
+   "cost": 1325,
+   "xp_scale": 1.425
+  },
+  "dan_dmonke": {
+   "name": "Dan D'Monke",
+   "cost": 650,
+   "xp_scale": 1.425
+  },
+  "etienne": {
+   "name": "Etienne",
+   "cost": 650,
+   "xp_scale": 1.0
+  },
+  "ezili": {
+   "name": "Ezili",
+   "cost": 550,
+   "xp_scale": 1.425
+  },
+  "geraldo": {
+   "name": "Geraldo",
+   "cost": 750,
+   "xp_scale": 1.0
+  },
+  "gwendolin": {
+   "name": "Gwendolin",
+   "cost": 725,
+   "xp_scale": 1.0
+  },
+  "obyn_greenfoot": {
+   "name": "Obyn Greenfoot",
+   "cost": 650,
+   "xp_scale": 1.0
+  },
+  "pat_fusty": {
+   "name": "Pat Fusty",
+   "cost": 800,
+   "xp_scale": 1.425
+  },
+  "psi": {
+   "name": "Psi",
+   "cost": 1000,
+   "xp_scale": 1.5
+  },
+  "quincy": {
+   "name": "Quincy",
+   "cost": 540,
+   "xp_scale": 1.0
+  },
+  "rosalia": {
+   "name": "Rosalia",
+   "cost": 875,
+   "xp_scale": 1.425
+  },
+  "sauda": {
+   "name": "Sauda",
+   "cost": 600,
+   "xp_scale": 1.425
+  },
+  "silas": {
+   "name": "Silas",
+   "cost": 850,
+   "xp_scale": 1.5
+  },
+  "striker_jones": {
+   "name": "Striker Jones",
+   "cost": 700,
+   "xp_scale": 1.0
+  }
+ }
+}

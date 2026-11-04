@@ -1,13 +1,14 @@
 """Pure game rules: difficulty pricing and the upgrade crosspath rule (RESEARCH.md)."""
-import math
 
 DIFFICULTY_MULT = {"easy": 0.85, "medium": 1.0, "hard": 1.08, "impoppable": 1.2}
 
 
 def cost(base, difficulty):
-    """Base price scaled by difficulty, rounded to the nearest $5."""
-    # ponytail: ties (x.5 of $5) round up; confirm against the in-game panel in step 2.5
-    return int(math.floor(base * DIFFICULTY_MULT[difficulty] / 5 + 0.5)) * 5
+    """Base price scaled by difficulty, rounded to the nearest $5, ties to the even multiple.
+
+    Matches the Bloons Wiki's Module:BTD6_costs (identical for every $5 base up to $100k).
+    """
+    return round(base * DIFFICULTY_MULT[difficulty] / 5) * 5
 
 
 def upgrade_allowed(tiers, path):

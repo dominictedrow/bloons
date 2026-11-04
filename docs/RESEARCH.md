@@ -34,7 +34,8 @@ Source: [Bloons wiki: Hotkeys](https://www.bloonswiki.com/Hotkeys). Fill in the 
 | Sniper / Sub / Buccaneer / Ace / Heli / Mortar / Dartling | Z / X / C / V / B / N / M | ? |
 | Wizard / Super / Ninja / Alchemist / Druid | A / S / D / F / G | ? |
 | Farm / Spike Factory / Village / Engineer | H / J / K / L | ? |
-| Newer towers (Mermonkey, Beast Handler, Desperado, …) | check the in-game hotkey settings | ? |
+| Beast Handler | I (wiki) | ? |
+| Mermonkey / Desperado / Skywarden | no default on the wiki; check in-game hotkey settings | ? |
 | Upgrade path 1 / 2 / 3 | `,` / `.` / `/` | ? |
 | Sell | Backspace | ? |
 | Change targeting | Tab (Ctrl+Tab = reverse) | ? |
@@ -46,7 +47,7 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
 ## Game mechanics the harness relies on
 - **Rounds are deterministic in Standard mode.** Bloon types, counts, spacing and properties (camo, regrow, fortified) are fixed per round. They go into `rounds.json` from the wiki, so the bloon type is known exactly and vision only has to supply positions.
 - **Upgrades:** 3 paths × 5 tiers. Crosspath rule: at most 2 paths upgraded, and only one beyond tier 2 (e.g. 5-2-0). Only one tier-5 per path per tower type on the map (Paragons excepted).
-- **Costs:** base cost × difficulty multiplier. Easy 0.85, Medium 1.0, Hard 1.08, Impoppable 1.2, rounded to the nearest $5. Cross-check against OCR of the upgrade panel. Ninja Kiwi rebalances often, so stamp the game version on the data.
+- **Costs:** base cost × difficulty multiplier. Easy 0.85, Medium 1.0, Hard 1.08, Impoppable 1.2, rounded to the nearest $5 with ties going to the even multiple (so $42.50 → $40, $127.50 → $130). Cross-check against OCR of the upgrade panel. Ninja Kiwi rebalances often, so stamp the game version on the data.
 - **Sell value:** 70% of money spent by default (more with some upgrades/villages). The harness tracks money spent per tower.
 - **Placement:** while a tower is held, an invalid spot tints the range circle red. That's how the per-map placeable mask is calibrated. Land, water and both-type towers need separate masks.
 - **Ranges:** base range per tower plus upgrade modifiers. A selected tower shows its circle, which can be measured to verify.
@@ -59,3 +60,4 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
 
 ## Findings log
 - 2026-11-03: Initial research. No direct confirmation found of hotkey support in BTD6+ Mac. A Steam user reported hotkeys working on a MacBook Air, but that was the Steam build ([thread](https://steamcommunity.com/app/960090/discussions/0/5226999188079746942)).
+- 2026-11-03: The Bloons Wiki keeps tower, upgrade and hero data in Cargo tables that `api.php?action=cargoquery` can read without a login (`Special:CargoExport` is behind Cloudflare). `scripts/fetch_wiki_data.py` builds `bloons/data/towers.json` and `heroes.json` from them. The tables have no range, footprint, land/water, ability, hero level-cost or round data. The wiki's cost module (`Module:BTD6_costs`) rounds ties to the even multiple of $5, which matches Python `round(x/5)*5` exactly. The data covers 26 towers including Skywarden ($205); Monkey Academy is listed with no cost and is skipped.
