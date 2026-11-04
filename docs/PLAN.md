@@ -72,7 +72,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [ ] 0.2 Mac setup: Python 3.11+, deps, Screen Recording + Accessibility permissions. Throwaway script: find the window, capture a frame, send a synthetic click + `Q` key. **Gate: if input is ignored, stop and re-plan (HID fallback).**
 - [ ] 0.3 Test every hotkey in RESEARCH.md and fill in the status column
 - [ ] 0.4 Measure capture FPS and OCR latency. Fix the window size used for all calibration and record it in START-HERE
-- [ ] 0.5 `git init` the repo structure, plus `requirements.txt`
+- [x] 0.5 `git init` the repo structure, plus `requirements.txt`
 
 ## Phase 1 — Platform + vision basics
 - [ ] 1.1 `platform_mac.py`: `find_window()`, `grab()`, `click(x,y)`, `drag(a,b)`, `key(k)` (normalized coords)
