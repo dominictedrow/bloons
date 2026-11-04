@@ -75,7 +75,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 0.5 `git init` the repo structure, plus `requirements.txt`
 
 ## Phase 1 — Platform + vision basics
-- [ ] 1.1 `platform_mac.py`: `find_window()`, `grab()`, `click(x,y)`, `drag(a,b)`, `key(k)` (normalized coords)
+- [x] 1.1 `platform_mac.py`: `find_window()`, `grab()`, `click(x,y)`, `drag(a,b)`, `key(k)` (normalized coords)
 - [ ] 1.2 Capture fixtures: HUD at various values, every popup type, victory, defeat, the upgrade panel → `data/fixtures/`
 - [ ] 1.3 HUD OCR: money, lives, round (digit whitelist + sanity filter) + offline tests
 - [ ] 1.4 Template library + `match(name)`: start / FF / FF-active buttons, popups, victory/defeat

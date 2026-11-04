@@ -1,15 +1,15 @@
 # START HERE
 
-**Current phase / step:** Phase 1 → step 1.1 (`platform_mac.py`). Phase 0 complete. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
-**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. Capture ~47 FPS; Apple Vision reads the HUD in ~16 ms per field. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/009-2026-11-04.md](handoffs/009-2026-11-04.md)
+**Current phase / step:** Phase 1 → step 1.2 (capture fixtures). Phase 0 and 1.1 done. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
+**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision. Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
+**Last handoff:** [handoffs/010-2026-11-04.md](handoffs/010-2026-11-04.md)
 
 ## Next action
-Step 1.1: write `bloons/platform_mac.py` (`find_window`, `grab`, `click`, `drag`, `key`, plus Vision OCR) from what `scripts/feasibility_mac.py` and `scripts/bench_capture_ocr.py` proved. Keys via PostToPid, clicks via HID, ~0.5 s between a tower key and the placement click, Ctrl/Shift key-up reset at start. Check the window is 1470×830 and warn if not.
+Step 1.2: collect fixtures into `bloons/data/fixtures/` with `Game().grab().save_png(...)`: the HUD at varied values, the pause menu, the upgrade panel on the left and right, play/fast-forward button states, victory, and popups (defeat and restart-confirm are already saved). Run `scripts/smoke_platform.py --input` first to check the platform layer still works.
 
 ## Open questions
-- Do PostToPid clicks work when the game isn't the frontmost app? (lets Dom keep the mouse; 1.1)
-- Does the game pause itself on focus loss? (1.1)
+- `drag()` is untested in the game (1.2+, when a feature needs it)
+- Stage Manager is on: if window moves cause trouble, consider turning it off for bot runs
 
 ## Environment notes
 - Game device: Mac15,12 (MacBook Air M3 13"), macOS 27.0.1

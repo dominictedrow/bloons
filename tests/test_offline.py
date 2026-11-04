@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from bloons.coords import box_to_pixels, to_norm, to_screen
 from bloons.rules import cost, upgrade_allowed
 
 
@@ -33,7 +34,30 @@ def test_upgrade_allowed():
     assert upgrade_allowed((2, 2, 0), 0)       # -> 3-2-0
 
 
+def test_coords():
+    bounds, tb = (55.0, 33.0, 1470.0, 830.0), 33   # windowed calibration layout
+    assert to_screen(0, 0, bounds, tb) == (55.0, 66.0)          # content starts below the title bar
+    assert to_screen(1, 1, bounds, tb) == (1525.0, 863.0)
+    x, y = to_screen(0.3, 0.7, bounds, tb)
+    assert all(abs(a - b) < 1e-9 for a, b in zip(to_norm(x, y, bounds, tb), (0.3, 0.7)))
+    # 2x Retina capture of the same window: title bar is 66 px
+    assert box_to_pixels([0, 0, 1, 1], 2940, 1660, 66) == (0, 66, 2940, 1594)
+    assert box_to_pixels([0.5, 0.5, 0.75, 1], 2940, 1660, 66) == (1470, 863, 735, 797)
+
+
+def test_ui_data():
+    import json
+    ui = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/ui.json").read_text())
+    assert ui["_meta"]["game_version"]
+    for x0, y0, x1, y1 in ui["hud"].values():
+        assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1
+    for x, y in ui["buttons"].values():
+        assert 0 <= x <= 1 and 0 <= y <= 1
+
+
 if __name__ == "__main__":
+    test_coords()
+    test_ui_data()
     test_cost()
     test_upgrade_allowed()
     test_tower_data()

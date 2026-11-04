@@ -1,0 +1,49 @@
+{
+ "_meta": {
+  "game_version": "57.4",
+  "calibrated": "2026-11-04",
+  "coords": "normalized 0-1 over the game's content area (window minus title bar); [x0, y0, x1, y1] boxes, [x, y] points",
+  "source": "measured on windowed 1470x830 pt screenshots, Monkey Meadow"
+ },
+ "window": {
+  "expected_pt": [
+   1470,
+   830
+  ],
+  "title_bar_pt": 33
+ },
+ "hud": {
+  "lives": [
+   0.085,
+   0.0113,
+   0.1361,
+   0.064
+  ],
+  "money": [
+   0.1905,
+   0.0113,
+   0.3027,
+   0.064
+  ],
+  "round": [
+   0.7143,
+   0.0238,
+   0.8041,
+   0.069
+  ]
+ },
+ "buttons": {
+  "cancel_placement": [
+   0.8218,
+   0.1066
+  ],
+  "play_ff": [
+   0.9374,
+   0.9398
+  ]
+ },
+ "timing_s": {
+  "after_tower_key": 0.5,
+  "after_click": 0.3
+ }
+}
