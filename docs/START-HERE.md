@@ -1,14 +1,14 @@
 # START HERE
 
-**Current phase / step:** Phase 0 → step 0.3 (hotkey sweep). Done: 0.1, 0.2 (gate passed), 0.5, 2.4. Partly done: 2.1/2.2 (wiki fetch).
-**Status:** BTD6+ accepts synthetic clicks and keys (HID tap and PostToPid). Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/006-2026-11-04.md](handoffs/006-2026-11-04.md)
+**Current phase / step:** Phase 0 → step 0.3 (hotkey sweep, mostly done). Done: 0.1, 0.2 (gate passed), 0.5, 2.4. Partly done: 2.1/2.2 (wiki fetch).
+**Status:** BTD6+ accepts synthetic clicks and keys. All tower, upgrade, sell, targeting and pause hotkeys are confirmed; Space, abilities and modifier combos aren't yet. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
+**Last handoff:** [handoffs/007-2026-11-04.md](handoffs/007-2026-11-04.md)
 
 ## Next action
-Step 0.3: Dom opens a Monkey Meadow sandbox and keeps hands off. Claude sends each hotkey in the RESEARCH.md table from its own shell (PostToPid first, HID as the fallback), compares before/after screenshots, and fills in the status column. Remember: Esc = pause, the red ✕ cancels a held tower, and bring the game to the front before sending keys.
+Dom starts a **Standard** game (not sandbox; rounds wouldn't start there). Claude tests Space (start and fast-forward), a tower ability (`1`) and Ctrl+Tab from its own shell, finishes the RESEARCH.md hotkey table, ticks 0.3, then moves to 0.4. Keys: PostToPid. Clicks: HID, with ~0.5 s between a tower key and the placement click.
 
 ## Open questions
-- Which desktop hotkeys work in BTD6+ on Mac? (0.3)
+- Why didn't rounds start in the sandbox? Does Space work in a Standard game? (0.3)
 - Do PostToPid clicks work when the game isn't the frontmost app? (lets Dom keep the mouse; 1.1)
 - Which window size do we fix for calibration? (0.4)
 

@@ -24,24 +24,28 @@ Fallback if CGEvent input is ignored: a HID-level virtual keyboard/mouse (e.g. K
 - [GraemeIBB/BloonPlayer](https://github.com/GraemeIBB/BloonPlayer): OpenCV-only autoplayer, best run round 104 on Meadows.
 - [Runeste3/cvbot](https://github.com/Runeste3/cvbot): generic CV + OCR desktop automation.
 
-## Hotkeys (desktop BTD6 defaults; verify each on BTD6+ Mac in step 0.3)
-Source: [Bloons wiki: Hotkeys](https://www.bloonswiki.com/Hotkeys). Fill in the status column during Phase 0.
+## Hotkeys (BTD6+ 57.4 on Mac, checked 2026-11-04)
+Bindings read from the in-game Settings → Hotkeys page (defaults; Dom hasn't changed them). "Confirmed" = Claude sent the key via `CGEventPostToPid` in a Monkey Meadow sandbox and checked the effect in a screenshot.
 
-| Action | Key | BTD6+ Mac |
+| Action | Key | Status |
 |---|---|---|
-| Hero | U | ? |
-| Dart / Boomerang / Bomb / Tack / Ice / Glue | Q / W / E / R / T / Y | Q confirmed (2026-11-04); rest ? |
-| Sniper / Sub / Buccaneer / Ace / Heli / Mortar / Dartling | Z / X / C / V / B / N / M | ? |
-| Wizard / Super / Ninja / Alchemist / Druid | A / S / D / F / G | ? |
-| Farm / Spike Factory / Village / Engineer | H / J / K / L | ? |
-| Beast Handler | I (wiki) | ? |
-| Mermonkey / Desperado / Skywarden | no default on the wiki; check in-game hotkey settings | ? |
-| Upgrade path 1 / 2 / 3 | `,` / `.` / `/` | ? |
-| Sell | Backspace | ? |
-| Change targeting | Tab (Ctrl+Tab = reverse) | ? |
-| Abilities 1–10 | 1–0 | ? |
-| Start round / fast-forward | Space | ? |
-| Pause menu (toggle) | Esc | confirmed (2026-11-04). Esc does **not** cancel a held tower; use the red ✕ next to the shop |
+| Hero | U | confirmed (selected Benjamin) |
+| Dart / Boomerang / Bomb / Tack / Ice / Glue | Q / W / E / R / T / Y | all confirmed |
+| Sniper / Sub / Buccaneer / Ace / Heli / Mortar / Dartling | Z / X / C / V / B / N / M | all confirmed |
+| Wizard / Super / Ninja / Alchemist / Druid | A / S / D / F / G | all confirmed |
+| Farm / Spike Factory / Village / Engineer | H / J / K / L | all confirmed |
+| Beast Handler | I | confirmed |
+| Desperado / Mermonkey / Skywarden | **unbound** (red in the menu) | click the shop, or bind keys in Settings |
+| Upgrade path 1 / 2 / 3 | `,` / `.` / `/` | all confirmed (needs the tower selected) |
+| Sell | Backspace | confirmed (paid the 70% sell value) |
+| Change targeting | Tab | confirmed (First → Last) |
+| Reverse targeting | Ctrl+Tab | not tested |
+| Pause | Backquote (opens) / Esc (toggles) | both confirmed; Backquote doesn't close the menu |
+| Play / fast-forward | Space | **not confirmed**: no effect in sandbox, but clicking the play button had no visible effect there either. Retest in a Standard game |
+| Activated abilities 1–12 | 1–0, Minus, Equals | not tested (needs an ability tower) |
+| Monkey Special / Special 2 | PageDown / PageUp | not tested |
+| Powers (Road Spikes … Cash Drop) | Shift+1 … Shift+RightBracket | not tested |
+| Sandbox: send bloon | Ctrl+1 … | Ctrl+1 had no visible effect via either method; modifier combos still unverified |
 
 Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI coordinate from `data/maps/*.json` / `data/ui.json`.
 
@@ -72,3 +76,11 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - Esc toggles pause; it doesn't cancel a held tower. The red ✕ to the left of the shop's tower-name label cancels.
   - Window: the game runs windowed or full screen; seen at 1470×988 and 1470×830 pt. `kCGWindowListOptionAll` + largest layer-0 window finds it in either mode. The mss capture of the window rect came out at 1 px per point on this Retina Mac, and the rect includes the 33 pt title bar. The calibration window size is still to be decided (step 0.4).
   - Accessibility permission is granted to the host app (VS Code here). `CGPreflightPostEventAccess()` reports it, and it took effect without relaunching VS Code.
+- 2026-11-04 — **Hotkey sweep (step 0.3).** See the hotkey table: all 24 bound tower/hero keys, the upgrade keys, Sell, Tab and Pause work through `CGEventPostToPid` (no need to take over the cursor for keys). Other findings:
+  - Clicking right after a tower key can be ignored. One placement failed when Q and the click came back to back; with ~0.5 s between key and click it worked. The harness should wait, or confirm the held tower is showing before clicking.
+  - Placing a tower: tower key → click a map spot. Clicking a placed tower opens the upgrade panel on the **left** side of the window (it shows the 3 paths with prices, the targeting mode, and the sell value). The upgrade keys and Sell act on the selected tower.
+  - A closed path ("PATH CLOSED", the crosspath rule) silently ignores its upgrade key.
+  - Water towers (Sub, Buccaneer) held over land show a red-tinted range circle, which confirms the placement-mask approach.
+  - The shop list scrolls; hotkeys select towers that are scrolled out of view.
+  - Settings → Hotkeys lists every binding and scrolls with wheel events (`CGEventCreateScrollWheelEvent` via HID).
+
