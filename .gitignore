@@ -1,3 +1,6 @@
 __pycache__/
 frame.png
 .env
+.venv/
+._*
+.DS_Store
