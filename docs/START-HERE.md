@@ -1,6 +1,6 @@
 # START HERE
 
-**Current phase / step:** Phase 1 → step 1.1 (`platform_mac.py`). Phase 0 complete. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch). Partly done: 2.1/2.2 (wiki fetch).
+**Current phase / step:** Phase 1 → step 1.1 (`platform_mac.py`). Phase 0 complete. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
 **Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. Capture ~47 FPS; Apple Vision reads the HUD in ~16 ms per field. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
 **Last handoff:** [handoffs/009-2026-11-04.md](handoffs/009-2026-11-04.md)
 
