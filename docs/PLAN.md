@@ -59,6 +59,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 | Hero | `hero: (tid, level, xp_frac)` | panel OCR |
 
 ## RL layer (`bloons/env.py`)
+**Owned by Dom, who builds the RL model himself.** Claude doesn't write the env, rewards, model or training code; the notes below are a starting sketch for Dom, not a spec. Claude's job ends at a harness that's clean to wrap (actions + `observe()`).
 - **Step:** one macro action at round start, plus every N seconds during a round. After each action the env runs `handle_prompts()` and returns `observe()`.
 - **Actions:** a flat `Discrete` table: `NOOP | START_ROUND | PLACE(kind, cell) | UPGRADE(slot, path) | SELL(slot) | ABILITY(slot) | TARGETING(slot, mode)`. Cells come from a coarse grid (e.g. 24×16), with a fixed number of tower slots (~20). `action_masks()` removes unaffordable, unplaceable and locked actions.
 - **Observation:** a vector (money, lives, round, upcoming composition, slot table, map one-hot) + a small grid image (path, towers, bloon density).
@@ -119,7 +120,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [ ] 6.1 Hand-written strategy using only the harness API
 - [ ] 6.2 Beat Easy on all 4 maps with outcome == "win" detected. Log (obs, action) pairs for BC
 
-## Phase 7 — RL
+## Phase 7 — RL (Dom's)
 - [ ] 7.1 `env.py` (Gymnasium) + `action_masks()`. `check_env` passes
 - [ ] 7.2 `train.py` with MaskablePPO, checkpoints, TensorBoard logging, multi-map sampling
 - [ ] 7.3 Optional BC warm start from the Phase 6 logs
