@@ -71,7 +71,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 0.1 Write CLAUDE.md, START-HERE.md, PLAN.md, RESEARCH.md, handoffs/
 - [x] 0.2 Mac setup: Python 3.11+, deps, Screen Recording + Accessibility permissions. Throwaway script: find the window, capture a frame, send a synthetic click + `Q` key. **Gate: if input is ignored, stop and re-plan (HID fallback).**
 - [x] 0.3 Test every hotkey in RESEARCH.md and fill in the status column
-- [ ] 0.4 Measure capture FPS and OCR latency. Fix the window size used for all calibration and record it in START-HERE
+- [x] 0.4 Measure capture FPS and OCR latency. Fix the window size used for all calibration and record it in START-HERE
 - [x] 0.5 `git init` the repo structure, plus `requirements.txt`
 
 ## Phase 1 — Platform + vision basics
