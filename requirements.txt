@@ -1,2 +1,3 @@
 mss
 pyobjc-framework-Quartz; sys_platform == "darwin"
+pytest

@@ -85,7 +85,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [ ] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water
 - [ ] 2.2 `heroes.json`: cost, level-up costs, abilities by level
 - [ ] 2.3 `rounds.json`: Standard rounds 1–140 (types, counts, properties)
-- [ ] 2.4 Cost helper `cost(base, difficulty)` + crosspath rule `upgrade_allowed(tiers, path)` + tests
+- [x] 2.4 Cost helper `cost(base, difficulty)` + crosspath rule `upgrade_allowed(tiers, path)` + tests
 - [ ] 2.5 Stamp the game version. Spot-check 10 costs against the in-game panel
 
 ## Phase 3 — Map calibration (Monkey Meadow, Tree Stump, Town Center, Logs)
