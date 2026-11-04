@@ -4,3 +4,4 @@ frame.png
 .venv/
 ._*
 .DS_Store
+bloons/data/fixtures_full/

@@ -55,7 +55,20 @@ def test_ui_data():
         assert 0 <= x <= 1 and 0 <= y <= 1
 
 
+def test_fixture_crops():
+    import json
+    fix = Path(__file__).resolve().parents[1] / "bloons/data/fixtures"
+    crops = json.loads((fix / "crops.json").read_text())["crops"]
+    assert len(crops) >= 30
+    for name, c in crops.items():
+        assert (fix / f"{name}.png").exists(), name
+        x0, y0, x1, y1 = c["box"]
+        assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1
+    assert all("truth" in c for n, c in crops.items() if n.startswith("hud_"))
+
+
 if __name__ == "__main__":
+    test_fixture_crops()
     test_coords()
     test_ui_data()
     test_cost()
