@@ -39,13 +39,13 @@ Bindings read from the in-game Settings → Hotkeys page (defaults; Dom hasn't c
 | Upgrade path 1 / 2 / 3 | `,` / `.` / `/` | all confirmed (needs the tower selected) |
 | Sell | Backspace | confirmed (paid the 70% sell value) |
 | Change targeting | Tab | confirmed (First → Last) |
-| Reverse targeting | Ctrl+Tab | not tested |
+| Reverse targeting | Ctrl+Tab | **doesn't work** via PostToPid or HID, even with a real Ctrl down/up. Use the ◀ arrow on the panel's targeting label |
 | Pause | Backquote (opens) / Esc (toggles) | both confirmed; Backquote doesn't close the menu |
-| Play / fast-forward | Space | **not confirmed**: no effect in sandbox, but clicking the play button had no visible effect there either. Retest in a Standard game |
-| Activated abilities 1–12 | 1–0, Minus, Equals | not tested (needs an ability tower) |
+| Play / fast-forward | Space | confirmed in a Standard game: starts the round, then toggles fast-forward (the ▶▶ arrows switch between dark and bright). Did nothing in the sandbox, where the button already showed ▶▶ |
+| Activated abilities 1–12 | 1–0, Minus, Equals | not tested yet (no ability tower affordable early). Test when the harness first uses one |
 | Monkey Special / Special 2 | PageDown / PageUp | not tested |
-| Powers (Road Spikes … Cash Drop) | Shift+1 … Shift+RightBracket | not tested |
-| Sandbox: send bloon | Ctrl+1 … | Ctrl+1 had no visible effect via either method; modifier combos still unverified |
+| Powers (Road Spikes … Cash Drop) | Shift+1 … Shift+RightBracket | not tested; modifier combos look unreliable (see Ctrl+Tab), so plan to click |
+| Sandbox: send bloon | Ctrl+1 … | no visible effect via either method |
 
 Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI coordinate from `data/maps/*.json` / `data/ui.json`.
 
@@ -83,4 +83,7 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - Water towers (Sub, Buccaneer) held over land show a red-tinted range circle, which confirms the placement-mask approach.
   - The shop list scrolls; hotkeys select towers that are scrolled out of view.
   - Settings → Hotkeys lists every binding and scrolls with wheel events (`CGEventCreateScrollWheelEvent` via HID).
+- 2026-11-04 — **Standard game follow-up (Monkey Meadow, Easy).** Space starts the round and toggles fast-forward. **Synthetic modifier combos don't work:** Ctrl+Tab did nothing via either method, sent either as a flagged event or as a real Ctrl down → Tab → Ctrl up. Worse, flagged combos can leave the game thinking Ctrl is held, which made plain Tab stop working until an explicit Ctrl key-up (keycode 59, flags 0) was sent. The harness should avoid modifier hotkeys, use the UI instead, and send a Ctrl/Shift key-up at startup as a safety reset.
+  - The upgrade panel opens on the **opposite side** of the screen from the selected tower: on the left for a tower on the right half, and on the right (next to the shop) for a tower on the left half. Vision has to find the panel; it can't use a fixed region.
+  - Targeting can also be changed with the ◀ ▶ arrows on either side of the targeting label in the panel.
 
