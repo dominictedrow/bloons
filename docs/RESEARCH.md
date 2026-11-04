@@ -24,13 +24,13 @@ Fallback if CGEvent input is ignored: a HID-level virtual keyboard/mouse (e.g. K
 - [GraemeIBB/BloonPlayer](https://github.com/GraemeIBB/BloonPlayer): OpenCV-only autoplayer, best run round 104 on Meadows.
 - [Runeste3/cvbot](https://github.com/Runeste3/cvbot): generic CV + OCR desktop automation.
 
-## Hotkeys (desktop BTD6 defaults — all UNVERIFIED on BTD6+ Mac)
+## Hotkeys (desktop BTD6 defaults; verify each on BTD6+ Mac in step 0.3)
 Source: [Bloons wiki: Hotkeys](https://www.bloonswiki.com/Hotkeys). Fill in the status column during Phase 0.
 
 | Action | Key | BTD6+ Mac |
 |---|---|---|
 | Hero | U | ? |
-| Dart / Boomerang / Bomb / Tack / Ice / Glue | Q / W / E / R / T / Y | ? |
+| Dart / Boomerang / Bomb / Tack / Ice / Glue | Q / W / E / R / T / Y | Q confirmed (2026-11-04); rest ? |
 | Sniper / Sub / Buccaneer / Ace / Heli / Mortar / Dartling | Z / X / C / V / B / N / M | ? |
 | Wizard / Super / Ninja / Alchemist / Druid | A / S / D / F / G | ? |
 | Farm / Spike Factory / Village / Engineer | H / J / K / L | ? |
@@ -41,6 +41,7 @@ Source: [Bloons wiki: Hotkeys](https://www.bloonswiki.com/Hotkeys). Fill in the 
 | Change targeting | Tab (Ctrl+Tab = reverse) | ? |
 | Abilities 1–10 | 1–0 | ? |
 | Start round / fast-forward | Space | ? |
+| Pause menu (toggle) | Esc | confirmed (2026-11-04). Esc does **not** cancel a held tower; use the red ✕ next to the shop |
 
 Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI coordinate from `data/maps/*.json` / `data/ui.json`.
 
@@ -61,3 +62,13 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
 ## Findings log
 - 2026-11-03: Initial research. No direct confirmation found of hotkey support in BTD6+ Mac. A Steam user reported hotkeys working on a MacBook Air, but that was the Steam build ([thread](https://steamcommunity.com/app/960090/discussions/0/5226999188079746942)).
 - 2026-11-03: The Bloons Wiki keeps tower, upgrade and hero data in Cargo tables that `api.php?action=cargoquery` can read without a login (`Special:CargoExport` is behind Cloudflare). `scripts/fetch_wiki_data.py` builds `bloons/data/towers.json` and `heroes.json` from them. The tables have no range, footprint, land/water, ability, hero level-cost or round data. The wiki's cost module (`Module:BTD6_costs`) rounds ties to the even multiple of $5, which matches Python `round(x/5)*5` exactly. The data covers 26 towers including Skywarden ($205); Monkey Academy is listed with no cost and is skipped.
+- 2026-11-04 — **Phase 0 gate passed: BTD6+ (57.4) accepts synthetic CGEvent input.** Results from `scripts/feasibility_mac.py` and follow-up checks in a Monkey Meadow sandbox:
+  - Click via `CGEventPost(kCGHIDEventTap)`: YES. Placed a held Dart Monkey; Dom confirmed.
+  - Click via `CGEventPostToPid`: YES. Placed a held Dart Monkey; Dom confirmed.
+  - Key via `CGEventPostToPid`: YES. `Q` selected the Dart Monkey (checked against before/after screenshots).
+  - Key via HID tap: YES. `Esc` opened the pause menu. (`Q` via HID wasn't isolated cleanly: it was sent while the monkey was already held.)
+  - The HID tap moves the real cursor, so the user can't use the mouse while the bot runs. PostToPid might avoid that; check this in step 1.1.
+  - Keys sent by HID go to the frontmost app. Bring the game to the front *after* any terminal interaction, or the key lands in the terminal.
+  - Esc toggles pause; it doesn't cancel a held tower. The red ✕ to the left of the shop's tower-name label cancels.
+  - Window: the game runs windowed or full screen; seen at 1470×988 and 1470×830 pt. `kCGWindowListOptionAll` + largest layer-0 window finds it in either mode. The mss capture of the window rect came out at 1 px per point on this Retina Mac, and the rect includes the 33 pt title bar. The calibration window size is still to be decided (step 0.4).
+  - Accessibility permission is granted to the host app (VS Code here). `CGPreflightPostEventAccess()` reports it, and it took effect without relaunching VS Code.
