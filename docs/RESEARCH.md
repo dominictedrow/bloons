@@ -109,3 +109,8 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - A simple scripted build held Easy Monkey Meadow at 200 lives through at least round 35: 2 Dart, Tack 3-0-1, Ninja 3-0-1, Bomb 0-4-0, Super 2-0-0.
   - Menus: Home → Play (map grid, paged) → map → difficulty (Easy/Medium/Hard) → mode (Standard / Primary Only / Deflation / Sandbox) → game. The home and difficulty screens show player names, so they aren't saved as fixtures (the repo is on GitHub).
 
+- 2026-11-04 — **Victory screen (step 1.2 finish)**, Monkey Meadow Easy, two more wins with the same scripted build (185 and 200 lives):
+  - **The HUD stays readable behind the victory screen.** Lives, money and round (`40/40`) still OCR correctly through the dimmed overlay, so "round unreadable" does **not** detect the end of a game. Detect victory by template-matching the banner (`fixtures/victory_banner.png`), or by "round 40/40 and the play button is not ▶▶".
+  - The overlay appears about 10 s after round 40's last bloon pops (on fast-forward). It shows "VICTORY", a stats card **with the player name** (so only the banner and the Next button are committed as crops), and a single **Next** button at about (0.50, 0.84) in content coordinates. What follows Next hasn't been captured yet (in handoff 011 the collection-event popup followed).
+  - The mode screen lists $22 Monkey Money for an Easy Standard win; the home balance went $4,880 → $4,904 across the first win (source of the extra $2 unknown).
+  - Menu click points (content coords, windowed 1470×830): Home Play (0.50, 0.872); Monkey Meadow tile, page 1 Beginner (0.2875, 0.235); Easy (0.3325, 0.374); Standard (0.336, 0.544). The map takes ~10 s to load.

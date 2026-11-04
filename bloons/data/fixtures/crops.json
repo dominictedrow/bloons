@@ -312,6 +312,24 @@
     0.4,
     0.71
    ]
+  },
+  "victory_banner": {
+   "src": "victory_monkey_meadow_easy.png",
+   "box": [
+    0.32,
+    0.088,
+    0.68,
+    0.235
+   ]
+  },
+  "victory_next_button": {
+   "src": "victory_monkey_meadow_easy.png",
+   "box": [
+    0.44,
+    0.793,
+    0.557,
+    0.886
+   ]
   }
  }
 }
