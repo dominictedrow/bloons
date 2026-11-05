@@ -131,3 +131,8 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - Defeat screen HUD: lives show a dimmed `0` that Vision doesn't read (so `lives=None`).
   - Speed per 2× frame: `Frame.content_bgr()` 37 ms (Quartz redraw at full size), resize 6 ms, all 14 templates + probe 7 ms. Drawing straight to work size would cut the first part if it ever matters.
   - Test frames are committed as JPEG q90 (1.45 MB for 17 instead of 6.5 MB as PNG; worst match 0.965, probe distance ≤ 2.6). The victory stats card (player name) is greyed out.
+
+- 2026-11-04 — **Round state + outcome (step 1.5)**, `bloons/state.py`, offline:
+  - `read_screen()` classifies all 17 test frames correctly: game (with button state and upgrade panel side), pause, victory, defeat, restart confirm, collection event, map select, mode select. The overlay order (restart confirm → victory → defeat → collection → pause → menus → button) handles both the dimmed play button still matching and the defeat screen behind the restart popup.
+  - **Auto-start is passed in explicitly** (`RoundTracker(auto_start=...)`). With it off, a round ends when the button goes running → idle. With it on, the button never goes idle, so a round ends when the HUD round number goes up. Inferring auto-start from timing was dropped because a lagging HUD read would fire a false `round_ended`.
+  - Assumption still to check live: the HUD round counter shows the next round to play and goes up when a round ends (`1/40` at idle before round 1 is consistent with that).

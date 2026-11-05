@@ -215,6 +215,80 @@ def test_frame_bgr_mac():
         assert a.shape == b.shape and np.abs(a.astype(int) - b).max() <= 1, name
 
 
+def test_read_screen():
+    from bloons.state import read_screen
+    for stem, f, img in _frames():
+        sc = read_screen(img)
+        assert sc.kind == f["screen"], (stem, sc.kind)
+        assert sc.button == f["button"], stem
+        assert sc.panel == f.get("sell_side"), stem
+
+
+def _feed(tracker, seq):
+    """seq of (kind, button, round) -> list of RoundState."""
+    from bloons.hud import Hud
+    from bloons.state import Screen
+    return [tracker.update(Screen(k, b), Hud(round=r, rounds_total=40 if r else None)) for k, b, r in seq]
+
+
+def test_round_tracker_manual_start():
+    from bloons.state import RoundTracker
+    t = RoundTracker(auto_start=False, confirm=2)
+    out = _feed(t, [("game", "idle", 1), ("game", "idle", 1),
+                    ("game", "ff_on", 1), ("game", "ff_on", 1), ("game", "ff_on", 1),
+                    ("game", "idle", 1),                     # one-off misread: ignored
+                    ("game", "ff_on", 1),
+                    ("pause", None, 1), ("game", "ff_on", 1),  # pause keeps the state
+                    ("game", "idle", 2), ("game", "idle", 2), ("game", "idle", 2),
+                    ("game", "ff_off", 2), ("game", "ff_off", 2)])
+    assert [s.round_active for s in out] == [False, False, False, True, True, True, True, True, True,
+                                             True, False, False, False, True]
+    assert [i for i, s in enumerate(out) if s.round_ended] == [10]   # exactly once, round 1
+    assert out[4].fast_forward is True and out[13].fast_forward is False
+    assert out[7].screen == "pause" and out[7].round_active is True
+    assert all(s.outcome is None for s in out)
+
+
+def test_round_tracker_auto_start():
+    from bloons.state import RoundTracker
+    t = RoundTracker(auto_start=True)
+    out = _feed(t, [("game", "idle", 1), ("game", "ff_on", 1), ("game", "ff_on", 1),
+                    ("game", "ff_on", 1), ("game", "ff_on", 2), ("game", "ff_on", 2),
+                    ("game", None, 2), ("game", "ff_on", 3)])
+    assert [i for i, s in enumerate(out) if s.round_ended] == [4, 7]
+    assert out[-1].round == 3 and out[-1].rounds_total == 40
+
+
+def test_round_tracker_outcome():
+    from bloons.state import RoundTracker
+    t = RoundTracker()
+    out = _feed(t, [("game", "ff_on", 40), ("game", "ff_on", 40),
+                    ("victory", None, 40),                   # needs a second frame
+                    ("victory", None, 40), ("unknown", None, None), ("map_select", None, None)])
+    assert [s.outcome for s in out] == [None, None, None, "win", "win", "win"]
+    assert out[3].round_active is False and not any(s.round_ended for s in out)
+    t.reset()
+    out = _feed(t, [("game", "ff_on", 13), ("defeat", None, 13), ("defeat", None, 13),
+                    ("restart_confirm", None, None), ("defeat", None, 13)])
+    assert [s.outcome for s in out] == [None, None, "loss", "loss", "loss"]
+    t.reset()
+    assert t.current is None and _feed(t, [("game", "idle", 1)])[0].outcome is None
+
+
+def test_round_tracker_on_frames():
+    """Real frames end to end: idle -> ff_off -> ff_on -> victory."""
+    from bloons.hud import Hud
+    from bloons.state import RoundTracker, read_screen
+    frames = {stem: img for stem, _, img in _frames()}
+    t = RoundTracker(confirm=1)
+    seq = ["hud_r1_idle_play_button", "hud_r1_running_ff_off", "hud_r1_running_ff_on",
+           "pause_menu", "hud_r39", "victory_monkey_meadow_easy"]
+    out = [t.update(read_screen(frames[s]), Hud()) for s in seq]
+    assert [s.round_active for s in out] == [False, True, True, True, True, False]
+    assert [s.fast_forward for s in out] == [False, False, True, True, True, None]
+    assert out[-1].outcome == "win"
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -231,4 +305,9 @@ if __name__ == "__main__":
     test_vision_button_state()
     test_vision_match_location()
     test_frame_bgr_mac()
+    test_read_screen()
+    test_round_tracker_manual_start()
+    test_round_tracker_auto_start()
+    test_round_tracker_outcome()
+    test_round_tracker_on_frames()
     print("ok")

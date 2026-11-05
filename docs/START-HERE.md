@@ -1,11 +1,11 @@
 # START HERE
 
-**Current phase / step:** Phase 1 → step 1.5 (round state + outcome). Phase 0 and 1.1–1.4 done. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
-**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). `bloons/vision.py` matches templates (`match`, `button_state`) on `Frame.content_bgr()`. Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/015-2026-11-04.md](handoffs/015-2026-11-04.md)
+**Current phase / step:** Phase 1 → live check of 1.5, then Phase 2/3. Phase 0 and 1.1–1.5 done (1.5 offline). Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
+**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). `bloons/vision.py` matches templates (`match`, `button_state`) on `Frame.content_bgr()`; `bloons/state.py` gives screen kind + `RoundTracker` (round_active / round_ended / outcome). Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
+**Last handoff:** [handoffs/016-2026-11-04.md](handoffs/016-2026-11-04.md)
 
 ## Next action
-Step 1.5: round-state + outcome detection (idle / running / ff, win / loss / popup) from `vision` + `HudFilter`, offline tests on `fixtures/frames/`. Check the overlay templates before the play button (it still matches when dimmed). Then a live Easy run on the Mac to confirm the templates generalize and to capture more ff_off frames.
+Live check of 1.5: open BTD6+ (windowed 1470×830), run `.venv/bin/python scripts/watch_state.py <scratch dir>` (sends no input) during one Easy Monkey Meadow game. Toggle FF, open the upgrade panel, pause once. Confirm the transitions and template scores; turn surprises into fixtures and tests.
 
 ## Open questions
 - `drag()` is untested in the game (1.2+, when a feature needs it)
