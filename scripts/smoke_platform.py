@@ -21,7 +21,7 @@ t0 = time.perf_counter(); f = g.grab(); t1 = time.perf_counter()
 print(f"grab: {f.width}x{f.height} px, scale {f.scale:.1f}, {1000 * (t1 - t0):.1f} ms")
 f.save_png(out / "smoke_frame.png")
 t0 = time.perf_counter(); hud = g.read_hud(f); t1 = time.perf_counter()
-print(f"HUD: {hud} ({1000 * (t1 - t0):.0f} ms for {len(hud)} fields; the first call loads the model)")
+print(f"HUD: {hud} ({1000 * (t1 - t0):.0f} ms for 3 fields; the first call loads the model)")
 t0 = time.perf_counter(); hud = g.read_hud(f); t1 = time.perf_counter()
 print(f"HUD again: {1000 * (t1 - t0):.0f} ms")
 

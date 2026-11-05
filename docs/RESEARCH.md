@@ -114,3 +114,10 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - The overlay appears about 10 s after round 40's last bloon pops (on fast-forward). It shows "VICTORY", a stats card **with the player name** (so only the banner and the Next button are committed as crops), and a single **Next** button at about (0.50, 0.84) in content coordinates. What follows Next hasn't been captured yet (in handoff 011 the collection-event popup followed).
   - The mode screen lists $22 Monkey Money for an Easy Standard win; the home balance went $4,880 → $4,904 across the first win (source of the extra $2 unknown).
   - Menu click points (content coords, windowed 1470×830): Home Play (0.50, 0.872); Monkey Meadow tile, page 1 Beginner (0.2875, 0.235); Easy (0.3325, 0.374); Standard (0.336, 0.544). The map takes ~10 s to load.
+
+- 2026-11-04 — **HUD OCR parsing (step 1.3)**, `bloons/hud.py`, checked on every fixture frame:
+  - Vision reads clean HUDs exactly (`200`, `$1,357`, `39/40`). The padded round crop also picks up the "ROUND" label as a low-confidence junk line in Latin or Cyrillic look-alikes (`KOMID`, `КОМПВ`). The parser keeps only a well-formed `N/M` token.
+  - **Upgrade panel open = HUD partly unreadable at the ui.json boxes.** Panel on the left: money reads `20` (no `$`, clipped) and lives read nothing. Panel on the right: round reads `TINYN`. Requiring the `$` and a valid `N/M` turns all of these into None rather than wrong numbers. Read the HUD with the panel closed, or rely on `HudFilter` holding the last good value.
+  - Defeat screen and restart confirm: lives read nothing, while money and round still read. Menus and the collection popup read nothing at all.
+  - Across all 17 full frames, the parser returned no wrong value: each field was either correct or None.
+  - Open: how the HUD shows freeplay rounds past 40 (whether it's still `N/M`). Not captured yet.

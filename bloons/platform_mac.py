@@ -10,6 +10,7 @@ What Phase 0 established (RESEARCH.md, 2026-11-04), and how this module follows 
   is covered or in the background, at Retina resolution (2 px per point). The API is
   deprecated; ScreenCaptureKit is the replacement if a macOS update removes it.
 - OCR uses Apple Vision (accurate, no language correction): ~16 ms per HUD field.
+  Parsing the text into numbers is portable and lives in bloons/hud.py.
 
 Coordinates are normalized 0-1 over the content area (see bloons/coords.py and data/ui.json).
 Methods return True/False or None for game-side problems; they raise only when the
@@ -26,6 +27,7 @@ import Vision
 from AppKit import NSDate, NSRunLoop, NSRunningApplication, NSWorkspace
 
 from bloons.coords import box_to_pixels, to_screen
+from bloons.hud import parse_hud
 
 UI = json.loads((Path(__file__).parent / "data" / "ui.json").read_text())
 
@@ -98,6 +100,17 @@ def load_png(path):
     """PNG file -> CGImage (for offline tests on fixtures)."""
     url = Q.CFURLCreateWithFileSystemPath(None, str(path), Q.kCFURLPOSIXPathStyle, False)
     return Q.CGImageSourceCreateImageAtIndex(Q.CGImageSourceCreateWithURL(url, None), 0, None)
+
+
+def ocr_image(image):
+    """Text in a CGImage via Apple Vision (accurate, no language correction), lines joined
+    by spaces. '' if nothing found."""
+    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(image, None)
+    req = Vision.VNRecognizeTextRequest.alloc().init()
+    req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+    req.setUsesLanguageCorrection_(False)
+    handler.performRequests_error_([req], None)
+    return " ".join(r.topCandidates_(1)[0].string() for r in (req.results() or []))
 
 
 def find_window(owner_substr="bloons"):
@@ -215,19 +228,20 @@ class Game:
 
     def ocr(self, frame, box):
         """Text in a normalized box of a frame, via Apple Vision. '' if nothing found."""
-        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(frame.crop(box), None)
-        req = Vision.VNRecognizeTextRequest.alloc().init()
-        req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
-        req.setUsesLanguageCorrection_(False)
-        handler.performRequests_error_([req], None)
-        return " ".join(r.topCandidates_(1)[0].string() for r in (req.results() or []))
+        return ocr_image(frame.crop(box))
 
-    def read_hud(self, frame=None):
-        """Raw OCR text of each HUD field in data/ui.json: {'lives': '178', 'money': '$1,552', ...}."""
+    def read_hud_raw(self, frame=None):
+        """Raw OCR text of each HUD field in data/ui.json: {'lives': '178', 'money': '$1,552', ...}.
+        {} if the window can't be captured."""
         frame = frame or self.grab()
         if frame is None:
             return {}
         return {name: self.ocr(frame, box) for name, box in UI["hud"].items()}
+
+    def read_hud(self, frame=None):
+        """Parsed HUD of one frame: Hud(lives, money, round, rounds_total), None per unreadable
+        field. Feed successive readings through hud.HudFilter to smooth out misreads."""
+        return parse_hud(self.read_hud_raw(frame))
 
     # --- input --------------------------------------------------------------------------
     def _screen(self, nx, ny):

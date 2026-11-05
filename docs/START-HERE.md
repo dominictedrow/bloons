@@ -1,11 +1,11 @@
 # START HERE
 
-**Current phase / step:** Phase 1 → step 1.3 (HUD OCR). Phase 0, 1.1 and 1.2 done. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
-**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision. Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/013-2026-11-04.md](handoffs/013-2026-11-04.md)
+**Current phase / step:** Phase 1 → step 1.4 (template matching). Phase 0 and 1.1–1.3 done. Also done: 2.4; partly done: 2.1/2.2 (wiki fetch).
+**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
+**Last handoff:** [handoffs/014-2026-11-04.md](handoffs/014-2026-11-04.md)
 
 ## Next action
-Step 1.3: HUD OCR parsing (money, lives, round; digit whitelist + sanity filter) with offline tests against the `truth` values in `bloons/data/fixtures/crops.json`. Note: the HUD stays readable behind the victory screen, so game-over detection must template-match `victory_banner` / defeat, not wait for the HUD to vanish.
+Step 1.4: template library + `match(name)` over the committed fixture crops (play / FF off / FF on, popups, `victory_banner`, defeat), with offline tests that each crop matches its own frame and not the others. Game-over detection must use these templates: the HUD stays readable behind victory.
 
 ## Open questions
 - `drag()` is untested in the game (1.2+, when a feature needs it)

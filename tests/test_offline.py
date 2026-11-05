@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bloons.coords import box_to_pixels, to_norm, to_screen
+from bloons.hud import Hud, HudFilter, parse_hud, parse_lives, parse_money, parse_round
 from bloons.rules import cost, upgrade_allowed
 
 
@@ -67,6 +68,83 @@ def test_fixture_crops():
     assert all("truth" in c for n, c in crops.items() if n.startswith("hud_"))
 
 
+def _hud_truth():
+    """(name, field, raw OCR text, truth) for every hud_* fixture crop."""
+    import json
+    crops = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/fixtures/crops.json").read_text())["crops"]
+    return [(n, n.rsplit("_", 1)[1], c["ocr"], c["truth"]) for n, c in crops.items() if n.startswith("hud_")]
+
+
+PARSERS = {"lives": parse_lives, "money": parse_money, "round": lambda t: list(parse_round(t) or ())}
+
+
+def test_hud_parse_fixtures():
+    """Recorded Vision output of each committed HUD crop parses to its truth value."""
+    rows = _hud_truth()
+    assert len(rows) >= 18
+    for name, field, raw, truth in rows:
+        assert PARSERS[field](raw) == truth, (name, raw)
+
+
+def test_hud_parse_edge_cases():
+    # junk from the 'ROUND' label (Latin and Cyrillic look-alikes) is ignored
+    assert parse_round("KOMID 1/40") == (1, 40)
+    assert parse_round("\u041a\u041e\u041c\u041f\u0412 30/40") == (30, 40)
+    # upgrade panel open: HUD shifted, boxes clip it (upgrade_panel_left/right.png)
+    assert parse_money("20") is None
+    assert parse_round("TINYN") is None
+    # nothing read (defeat screen lives box, menus)
+    assert parse_lives("") is None and parse_money("") is None and parse_round("") is None
+    assert parse_hud({}) == Hud()
+    # thousands separators must be well-formed
+    assert parse_money("$12,345,678") == 12345678
+    assert parse_money("$1,35") is None and parse_money("$13,57") is None
+    # digit confusables, only inside numeric-looking tokens
+    assert parse_lives("2OO") == 200 and parse_lives("l89") == 189
+    assert parse_money("$1,3S7") == 1357
+    assert parse_lives("ROUND") is None
+    # impossible values
+    assert parse_round("41/40") is None and parse_round("0/40") is None
+    assert parse_lives("12345") is None
+    # two different candidates in one box is ambiguous
+    assert parse_lives("200 189") is None and parse_lives("200 200") == 200
+    full = parse_hud({"lives": "189", "money": "$1,630", "round": "39/40"})
+    assert full == Hud(189, 1630, 39, 40) and full.complete
+    assert not Hud(189, None, 39, 40).complete
+
+
+def test_hud_filter():
+    f = HudFilter(confirm=2)
+    assert f.update(Hud(200, 650, 1, 40)) == Hud(200, 650, 1, 40)   # first reading taken as is
+    assert f.update(Hud(200, 65, 1, 40)).money == 650                # one-off misread held back
+    assert f.update(Hud(200, 650, 1, 40)).money == 650
+    assert f.update(Hud(200, 480, 1, 40)).money == 650               # real change: needs a 2nd read
+    assert f.update(Hud(200, 480, 1, 40)).money == 480
+    assert f.update(Hud(None, None, None, None)) == Hud(200, 480, 1, 40)   # unreadable: keep values
+    assert f.misses == {"lives": 1, "money": 1, "round": 1, "rounds_total": 1}
+    f.update(Hud(200, 480, 2, 40))
+    assert f.misses["round"] == 0 and f.current.round == 1
+    f.update(Hud(200, 480, 3, 40))                                   # different candidate restarts the count
+    assert f.current.round == 1
+    assert f.update(Hud(200, 480, 3, 40)).round == 3
+    f.reset()
+    assert f.current == Hud() and f.update(Hud(200, 650, 1, 40)).round == 1
+    assert HudFilter(confirm=1).update(Hud(1, 2, 3, 4)) == Hud(1, 2, 3, 4)
+
+
+def test_hud_ocr_live():
+    """Mac only: run Vision on the committed crops and parse (skipped elsewhere)."""
+    try:
+        from bloons.platform_mac import load_png, ocr_image
+    except ImportError:
+        print("skip test_hud_ocr_live: not on macOS")
+        return
+    fix = Path(__file__).resolve().parents[1] / "bloons/data/fixtures"
+    for name, field, _, truth in _hud_truth():
+        raw = ocr_image(load_png(fix / f"{name}.png"))
+        assert PARSERS[field](raw) == truth, (name, raw)
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -74,4 +152,8 @@ if __name__ == "__main__":
     test_cost()
     test_upgrade_allowed()
     test_tower_data()
+    test_hud_parse_fixtures()
+    test_hud_parse_edge_cases()
+    test_hud_filter()
+    test_hud_ocr_live()
     print("ok")

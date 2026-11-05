@@ -15,7 +15,8 @@
     0.1461,
     0.072
    ],
-   "truth": 200
+   "truth": 200,
+   "ocr": "200"
   },
   "hud_r01_idle_money": {
    "src": "hud_r1_idle_play_button.png",
@@ -25,7 +26,8 @@
     0.3127,
     0.072
    ],
-   "truth": 650
+   "truth": 650,
+   "ocr": "$650"
   },
   "hud_r01_idle_round": {
    "src": "hud_r1_idle_play_button.png",
@@ -38,7 +40,8 @@
    "truth": [
     1,
     40
-   ]
+   ],
+   "ocr": "KOMID 1/40"
   },
   "hud_r05_lives": {
    "src": "hud_r05.png",
@@ -48,7 +51,8 @@
     0.1461,
     0.072
    ],
-   "truth": 200
+   "truth": 200,
+   "ocr": "200"
   },
   "hud_r05_money": {
    "src": "hud_r05.png",
@@ -58,7 +62,8 @@
     0.3127,
     0.072
    ],
-   "truth": 191
+   "truth": 191,
+   "ocr": "$191"
   },
   "hud_r05_round": {
    "src": "hud_r05.png",
@@ -71,7 +76,8 @@
    "truth": [
     5,
     40
-   ]
+   ],
+   "ocr": "5/40"
   },
   "hud_r10_lives": {
    "src": "hud_r10.png",
@@ -81,7 +87,8 @@
     0.1461,
     0.072
    ],
-   "truth": 200
+   "truth": 200,
+   "ocr": "200"
   },
   "hud_r10_money": {
    "src": "hud_r10.png",
@@ -91,7 +98,8 @@
     0.3127,
     0.072
    ],
-   "truth": 133
+   "truth": 133,
+   "ocr": "$133"
   },
   "hud_r10_round": {
    "src": "hud_r10.png",
@@ -104,7 +112,8 @@
    "truth": [
     10,
     40
-   ]
+   ],
+   "ocr": "KOMID 10/40"
   },
   "hud_r20_lives": {
    "src": "hud_r20.png",
@@ -114,7 +123,8 @@
     0.1461,
     0.072
    ],
-   "truth": 200
+   "truth": 200,
+   "ocr": "200"
   },
   "hud_r20_money": {
    "src": "hud_r20.png",
@@ -124,7 +134,8 @@
     0.3127,
     0.072
    ],
-   "truth": 1357
+   "truth": 1357,
+   "ocr": "$1,357"
   },
   "hud_r20_round": {
    "src": "hud_r20.png",
@@ -137,7 +148,8 @@
    "truth": [
     20,
     40
-   ]
+   ],
+   "ocr": "КOМIВ 20/40"
   },
   "hud_r30_lives": {
    "src": "hud_r30.png",
@@ -147,7 +159,8 @@
     0.1461,
     0.072
    ],
-   "truth": 200
+   "truth": 200,
+   "ocr": "200"
   },
   "hud_r30_money": {
    "src": "hud_r30.png",
@@ -157,7 +170,8 @@
     0.3127,
     0.072
    ],
-   "truth": 796
+   "truth": 796,
+   "ocr": "$796"
   },
   "hud_r30_round": {
    "src": "hud_r30.png",
@@ -170,7 +184,8 @@
    "truth": [
     30,
     40
-   ]
+   ],
+   "ocr": "КОМПВ 30/40"
   },
   "hud_r39_lives": {
    "src": "hud_r39.png",
@@ -180,7 +195,8 @@
     0.1461,
     0.072
    ],
-   "truth": 189
+   "truth": 189,
+   "ocr": "189"
   },
   "hud_r39_money": {
    "src": "hud_r39.png",
@@ -190,7 +206,8 @@
     0.3127,
     0.072
    ],
-   "truth": 1630
+   "truth": 1630,
+   "ocr": "$1,630"
   },
   "hud_r39_round": {
    "src": "hud_r39.png",
@@ -203,7 +220,8 @@
    "truth": [
     39,
     40
-   ]
+   ],
+   "ocr": "КOМIВ 39/40"
   },
   "btn_play_idle": {
    "src": "hud_r1_idle_play_button.png",
