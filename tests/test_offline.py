@@ -145,6 +145,76 @@ def test_hud_ocr_live():
         assert PARSERS[field](raw) == truth, (name, raw)
 
 
+FIX = Path(__file__).resolve().parents[1] / "bloons/data/fixtures"
+
+
+def _frames():
+    import json
+    import cv2
+    man = json.loads((FIX / "frames.json").read_text())["frames"]
+    return [(stem, f, cv2.imread(str(FIX / "frames" / f"{stem}.jpg"))) for stem, f in man.items()]
+
+
+def test_vision_spec():
+    from bloons.vision import SPEC, Templates
+    t = Templates()
+    for name, s in SPEC["templates"].items():
+        x0, y0, x1, y1 = s["box"]
+        assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1, name
+        assert 0.5 <= s["threshold"] < 1, name
+        assert t.image(name).size > 0
+    for p in SPEC["probes"].values():
+        assert p["classes"] and p["max_dist"] > 0
+
+
+def test_vision_templates():
+    """Every frame: listed templates match, all others (except 'ignore') don't."""
+    from bloons.vision import Templates
+    t = Templates()
+    frames = _frames()
+    assert len(frames) >= 17
+    for stem, f, img in frames:
+        assert img is not None, stem
+        for name, m in t.match_all(img).items():
+            if name in f.get("ignore", []):
+                continue
+            assert m.found == (name in f["present"]), (stem, name, round(m.score, 3))
+
+
+def test_vision_button_state():
+    from bloons.vision import Templates
+    t = Templates()
+    for stem, f, img in _frames():
+        assert t.button_state(img) == f["button"], stem
+
+
+def test_vision_match_location():
+    from bloons.vision import Templates
+    t = Templates()
+    for stem, f, img in _frames():
+        if "sell_side" in f:   # one sell template finds the panel on either side
+            x, _ = t.match(img, "sell_button").center
+            assert ("left" if x < 0.5 else "right") == f["sell_side"], stem
+    stem, f, img = next(r for r in _frames() if r[0] == "victory_monkey_meadow_easy")
+    x, y = t.match(img, "victory_next").center   # ~ where to click Next (RESEARCH: 0.50, 0.84)
+    assert abs(x - 0.50) < 0.01 and abs(y - 0.84) < 0.01
+
+
+def test_frame_bgr_mac():
+    """Mac only: Quartz -> numpy conversion gives OpenCV's BGR layout (skipped elsewhere)."""
+    try:
+        from bloons.platform_mac import cgimage_bgr, load_png
+    except ImportError:
+        print("skip test_frame_bgr_mac: not on macOS")
+        return
+    import cv2
+    import numpy as np
+    for name in ("btn_ff_on", "victory_banner"):
+        a = cgimage_bgr(load_png(FIX / f"{name}.png"))
+        b = cv2.imread(str(FIX / f"{name}.png"))
+        assert a.shape == b.shape and np.abs(a.astype(int) - b).max() <= 1, name
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -156,4 +226,9 @@ if __name__ == "__main__":
     test_hud_parse_edge_cases()
     test_hud_filter()
     test_hud_ocr_live()
+    test_vision_spec()
+    test_vision_templates()
+    test_vision_button_state()
+    test_vision_match_location()
+    test_frame_bgr_mac()
     print("ok")

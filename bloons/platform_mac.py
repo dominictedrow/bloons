@@ -62,6 +62,10 @@ class Frame:
         x, y, w, h = box_to_pixels(box, self.width, self.height, self.title_bar_px)
         return Q.CGImageCreateWithImageInRect(self.image, Q.CGRectMake(x, y, w, h))
 
+    def content_bgr(self):
+        """Content area (title bar cut off) as an HxWx3 BGR numpy array, for bloons/vision.py."""
+        return cgimage_bgr(self.image)[self.title_bar_px:]
+
     def bgra(self):
         """Raw pixels: (bytes, bytes_per_row). Rows may be padded past width * 4."""
         data = Q.CGDataProviderCopyData(Q.CGImageGetDataProvider(self.image))
@@ -73,16 +77,28 @@ class Frame:
         Path(path).write_bytes(png_bytes(image or self.image))
         return True
 
+def _rgbx(image):
+    """CGImage -> (bytes, w, h): tightly packed 8-bit RGBX, whatever the source pixel format."""
+    w, h = Q.CGImageGetWidth(image), Q.CGImageGetHeight(image)
+    ctx = Q.CGBitmapContextCreate(None, w, h, 8, w * 4, Q.CGColorSpaceCreateDeviceRGB(),
+                                  Q.kCGImageAlphaNoneSkipLast)
+    Q.CGContextDrawImage(ctx, Q.CGRectMake(0, 0, w, h), image)
+    return bytes(Q.CGDataProviderCopyData(Q.CGImageGetDataProvider(Q.CGBitmapContextCreateImage(ctx)))), w, h
+
+
+def cgimage_bgr(image):
+    """CGImage -> HxWx3 uint8 BGR numpy array (OpenCV's layout, for bloons/vision.py)."""
+    import numpy as np
+    data, w, h = _rgbx(image)
+    return np.frombuffer(data, np.uint8).reshape(h, w, 4)[:, :, 2::-1].copy()
+
+
 def png_bytes(image, level=9):
     """CGImage -> PNG bytes (8-bit RGB, no alpha). Redraws into a known RGBX layout first, so
     it works for any source pixel format."""
     import struct
     import zlib
-    w, h = Q.CGImageGetWidth(image), Q.CGImageGetHeight(image)
-    ctx = Q.CGBitmapContextCreate(None, w, h, 8, w * 4, Q.CGColorSpaceCreateDeviceRGB(),
-                                  Q.kCGImageAlphaNoneSkipLast)
-    Q.CGContextDrawImage(ctx, Q.CGRectMake(0, 0, w, h), image)
-    rgbx = bytes(Q.CGDataProviderCopyData(Q.CGImageGetDataProvider(Q.CGBitmapContextCreateImage(ctx))))
+    rgbx, w, h = _rgbx(image)
     raw = bytearray()
     for y in range(h):
         row = rgbx[y * w * 4:(y + 1) * w * 4]

@@ -121,3 +121,13 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - Defeat screen and restart confirm: lives read nothing, while money and round still read. Menus and the collection popup read nothing at all.
   - Across all 17 full frames, the parser returned no wrong value: each field was either correct or None.
   - Open: how the HUD shows freeplay rounds past 40 (whether it's still `N/M`). Not captured yet.
+
+- 2026-11-04 — **Template matching (step 1.4)**, `bloons/vision.py` + `data/templates.json`, 14 templates and 17 test frames:
+  - Matching runs on the content area resized to 735 px wide (TM_CCOEFF_NORMED, BGR, within the box ± 0.02, or an explicit search box). Matches score 0.965–1.00 and non-matches at most 0.61 (`menu_map_select` against the mode screen), so every threshold is 0.8. Caveat: most matches are a template against its own source frame. Real generalization so far is shown only by `btn_ff` (0.98 on 9 other frames) and `sell_button` (cut from the right-hand panel, 0.99 on the left-hand one). Check live in 1.5.
+  - **Fast-forward on vs off differs only in colour**: the green lightens from BGR (76, 227, 137) to (76, 236, 152). Normalized matching can't see that, so a colour probe on the button classifies idle (9, 224, 97) / ff_off / ff_on within distance 2.5. Only **one** ff_off frame exists so far: confirm live in 1.5.
+  - **Overlays dim the play button, but the match ignores brightness**: under victory or pause, `btn_play` still scores 1.00. The probe returns None there (distance ≥ 98), so `button_state()` is None. Outcome detection must check the victory/defeat/popup templates first, not the button.
+  - `defeat_buttons` scores 0.78 behind the restart-confirm popup, just under the threshold. Check `restart_confirm` before `defeat_*`.
+  - The one `sell_button` template finds the upgrade panel on either side, and its match centre gives the side. `victory_next` centres at (0.50, 0.84), matching the click point measured by hand.
+  - Defeat screen HUD: lives show a dimmed `0` that Vision doesn't read (so `lives=None`).
+  - Speed per 2× frame: `Frame.content_bgr()` 37 ms (Quartz redraw at full size), resize 6 ms, all 14 templates + probe 7 ms. Drawing straight to work size would cut the first part if it ever matters.
+  - Test frames are committed as JPEG q90 (1.45 MB for 17 instead of 6.5 MB as PNG; worst match 0.965, probe distance ≤ 2.6). The victory stats card (player name) is greyed out.

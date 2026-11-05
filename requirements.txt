@@ -2,3 +2,5 @@ mss
 pyobjc-framework-Quartz; sys_platform == "darwin"
 pyobjc-framework-Vision; sys_platform == "darwin"
 pytest
+numpy
+opencv-python
