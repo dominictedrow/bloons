@@ -91,7 +91,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 
 ## Phase 3 — Map calibration (Monkey Meadow, Tree Stump, Town Center, Logs)
 - [x] 3.1 `ui.json`: shared UI coords (tower shop, upgrade panel buttons, sell, targeting, ability bar, settings/auto-start, FF) — *plus hero panel, pause, menus, defeat/restart buttons; `bloons/ui.py` accessors; shop scrolls (HID wheel), two scroll layouts*
-- [ ] 3.2 `calibrate.py mask <map>`: grid sweep while holding a tower, reading the red tint → placeable masks per footprint (land/water)
+- [x] 3.2 `calibrate.py mask <map>`: grid sweep while holding a tower, reading the red tint → placeable masks per footprint (land/water) — *Monkey Meadow: 6 land classes (r6, r7, r8, r11, heli, ace), outline-then-ring classifier; no water on this map; `placement.placeable()` + `calibrate.py show`*
 - [ ] 3.3 `calibrate.py path <map>`: frame-difference bloons on round 1 → polyline, then a hand-correct click tool
 - [ ] 3.4 Obstacles: click points + IDs per map
 - [ ] 3.5 Calibrate all 4 maps and save `data/maps/<map>.json`

@@ -568,6 +568,71 @@ def test_rounds_data():
     assert ddt and all(g["camo"] for g in ddt)                     # DDTs are always camo
 
 
+def test_placement_tint():
+    """Held tower over grass (ok) and the path (blocked), vs the same crop before holding."""
+    import cv2
+    from bloons.placement import held_tint
+    d = Path(__file__).resolve().parents[1] / "bloons/data/fixtures/placement"
+    cases = (("dart_grass", "grass", "ok"), ("dart_path", "path", "blocked"),
+             ("heli_grass", "heli_grass", "ok"))   # the Heli pad reaches into the ring
+    for held_name, spot, want in cases:
+        held, base = cv2.imread(str(d / f"held_{held_name}.png")), cv2.imread(str(d / f"base_{spot}.png"))
+        assert held_tint(held, base) == want, spot
+        assert held_tint(base, base) == "none", spot
+
+
+def test_placement_grid_mask():
+    import numpy as np
+    from bloons.placement import Grid, Mask
+    g = Grid.over([0.03, 0.0, 0.84, 1.0], 0.01, 0.0184)
+    assert (g.nx, g.ny) == (81, 54) and abs(g.x0 - 0.035) < 1e-9
+    assert g.cell(*g.centre(10, 20)) == (10, 20) and g.cell(0.0, 0.5) is None
+    ok = np.zeros((g.ny, g.nx), bool)
+    ok[20, 10] = True
+    m = Mask.from_json(Mask(g, ok).to_json())
+    assert m.placeable(*g.centre(10, 20)) and not m.placeable(*g.centre(11, 20))
+
+
+def test_mask_classes():
+    import json
+    import numpy as np
+    from bloons.placement import Grid, Mask, mask_classes, placeable
+    from bloons.rules import tower_shape
+    towers = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/towers.json").read_text())["towers"]
+    cls = {n: mask_classes(n, tower_shape(t, (0, 0, 0)) if t.get("stats") else None) for n, t in towers.items()}
+    assert cls["dart_monkey"] == ["land_r6"] and cls["ice_monkey"] == ["land_r6", "water_r6"]
+    assert cls["monkey_sub"] == ["water_r7"] and cls["heli_pilot"] == ["land_heli"] and cls["monkey_ace"] == ["land_ace"]
+    assert cls["banana_farm"] == ["land_r11"]                      # assumed until measured
+    assert mask_classes("super_monkey", tower_shape(towers["super_monkey"], (4, 0, 0))) == \
+        ["land_rect37x40", "water_rect37x40"]                      # Sun Temple: no mask yet -> never placeable
+    g = Grid.over([0, 0, 1, 1], 0.5, 0.5)
+    ok6 = np.array([[True, True], [True, False]])
+    ok11 = np.array([[True, False], [False, False]])
+    masks = {"land_r6": Mask(g, ok6), "land_r11": Mask(g, ok11)}
+    assert placeable(masks, ["land_r6"], 0.75, 0.25)
+    assert not placeable(masks, ["land_r8"], 0.75, 0.25) and placeable(masks, ["land_r8"], 0.25, 0.25)   # -> r11
+    assert not placeable(masks, ["water_r7"], 0.25, 0.25)          # no water mask
+    assert placeable(masks, ["land_r6", "water_r6"], 0.25, 0.75)   # either class
+
+
+def test_map_masks():
+    """Committed map masks: well-formed, and Monkey Meadow's path is blocked, open grass is ok."""
+    import json
+    from bloons.placement import Mask
+    maps = Path(__file__).resolve().parents[1] / "bloons/data/maps"
+    files = sorted(f for f in maps.glob("*.json") if not f.name.startswith("._")) if maps.exists() else []   # FAT32 sidecars
+    for f in files:
+        data = json.loads(f.read_text())
+        assert data["_meta"]["game_version"], f.name
+        for cls, d in data["masks"].items():
+            m = Mask.from_json(d)
+            assert 0.05 < m.ok.mean() < 0.95, (f.name, cls)
+    mm = maps / "monkey_meadow.json"
+    if mm.exists():
+        m = Mask.from_json(json.loads(mm.read_text())["masks"]["land_r6"])
+        assert not m.placeable(0.30, 0.42) and m.placeable(0.36, 0.30)   # path / grass in the loop
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
