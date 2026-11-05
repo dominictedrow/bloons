@@ -6,7 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bloons.coords import box_to_pixels, to_norm, to_screen
 from bloons.hud import Hud, HudFilter, parse_hud, parse_lives, parse_money, parse_round
-from bloons.rules import cost, tower_abilities, tower_range, tower_shape, upgrade_allowed
+from bloons.rules import (cost, hero_abilities, hero_level_cost, hero_range, hero_xp_for_round, hero_xp_to_reach,
+                          tower_abilities, tower_range, tower_shape, upgrade_allowed)
 
 
 def test_cost():
@@ -385,6 +386,39 @@ def test_tower_abilities_and_shape():
     assert tower_shape(t["ice_monkey"], (0, 0, 0))["targeting"] == ["close"]
 
 
+def _heroes():
+    import json
+    return json.loads((Path(__file__).resolve().parents[1] / "bloons/data/heroes.json").read_text())["heroes"]
+
+
+def test_hero_data():
+    heroes = _heroes()
+    assert len(heroes) >= 18
+    for k, h in heroes.items():
+        assert len(h["level_xp"]) == 19 and all(x > 0 for x in h["level_xp"]), k
+        assert len(h["levels"]) == 20 and all(h["levels"]), k
+        if h["stats"]:
+            assert len(h["stats"]["range_by_level"]) == 20 and h["stats"]["footprint"], k
+    assert {k for k, h in heroes.items() if h["stats"]} >= {"quincy", "adora", "gwendolin", "sauda", "striker_jones"}
+    assert heroes["quincy"]["level_xp"][:4] == [180, 460, 1000, 1860]       # xp_scale 1
+    assert heroes["benjamin"]["level_xp"][:2] == [270, 690]                  # xp_scale 1.5
+    assert heroes["benjamin"]["levels"][2].startswith("Biohack")             # level 3
+
+
+def test_hero_rules():
+    h = _heroes()
+    q = h["quincy"]
+    assert [hero_xp_for_round(r) for r in (1, 20, 21, 50, 51)] == [40, 420, 460, 1620, 1710]
+    assert hero_xp_to_reach(q, 1) == 0 and hero_xp_to_reach(q, 3) == 640   # = the module's xpLv3
+    assert hero_level_cost(q, 1) == 180 and hero_level_cost(q, 1, 100) == 80 and hero_level_cost(q, 20) is None
+    assert hero_abilities(q, 2) == []
+    assert hero_abilities(q, 3) == [{"name": "Rapid Shot", "level": 3, "cooldown": 60}]
+    late = {a["name"]: a["cooldown"] for a in hero_abilities(q, 20)}
+    assert late == {"Rapid Shot": 45, "Storm of Arrows": 55}
+    assert hero_range(q, 1) == 50 and hero_range(q, 20) == 54
+    assert hero_abilities(h["benjamin"], 10) is None and hero_range(h["benjamin"], 1) is None
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -395,6 +429,8 @@ if __name__ == "__main__":
     test_tower_stats_data()
     test_tower_range()
     test_tower_abilities_and_shape()
+    test_hero_data()
+    test_hero_rules()
     test_hud_parse_fixtures()
     test_hud_parse_edge_cases()
     test_hud_filter()

@@ -68,3 +68,46 @@ def tower_shape(tower, tiers):
             shape.update({k: v for k, v in o.items() if k in shape})
     return shape
 
+
+# --- heroes (heroes.json; see scripts/fetch_wiki_data.py) ----------------------------------
+
+def hero_xp_for_round(r):
+    """XP a hero gains at the end of round r (before map-difficulty multipliers)."""
+    if r <= 20:
+        return 20 * r + 20
+    if r <= 50:
+        return 40 * r - 380
+    return 90 * r - 2880
+
+
+def hero_xp_to_reach(hero, level):
+    """Total XP from level 1 to `level` (1..20)."""
+    return sum(hero["level_xp"][:level - 1])
+
+
+def hero_level_cost(hero, level, xp_into_level=0):
+    """Cash to buy the next level for a hero at `level` with `xp_into_level` XP already earned
+    toward it: $1 per remaining XP (wiki; difficulty scaling unchecked). None at level 20."""
+    if level >= 20:
+        return None
+    return max(0, hero["level_xp"][level - 1] - xp_into_level)
+
+
+def hero_abilities(hero, level):
+    """Activated abilities unlocked at `level`, each with its current cooldown:
+    [{'name', 'level', 'cooldown'}]. None if the wiki has no data for this hero."""
+    st = hero.get("stats")
+    if not st:
+        return None
+    out = []
+    for a in st["abilities"]:
+        if a["level"] <= level:
+            cds = [cd for lv, cd in a["cooldown"].items() if int(lv) <= level]
+            out.append({"name": a["name"], "level": a["level"], "cooldown": cds[-1] if cds else None})
+    return out
+
+
+def hero_range(hero, level):
+    st = hero.get("stats")
+    return st["range_by_level"][level - 1] if st else None
+
