@@ -12,7 +12,7 @@ rounds.json (Standard, rounds 1-140) comes from JSON:Bloons TD 6/Rounds/DefaultR
 DefaultIncomeSet, with RBE / layers / pop cash computed exactly like the wiki's
 Module:BTD6 rounds/new (tables from Module:BTD6 rounds/stats).
 
-Re-run after a game update. game_version stays null until checked in game (PLAN step 2.5).
+Re-run after a game update, then re-check in game and update GAME_VERSION / IN_GAME_CHECK.
 """
 import datetime
 import json
@@ -240,6 +240,13 @@ def build_rounds(roundset, incomeset, stats_src):
     return rounds
 
 
+# The game version these files were spot-checked against (PLAN 2.5). Update after re-checking.
+GAME_VERSION = "57.4"
+IN_GAME_CHECK = ("2026-11-04, BTD6+ 57.4, Monkey Meadow Easy sandbox: 33 shop/upgrade prices match "
+                 "bloons.rules.cost() (after fixing its rounding), Dart/Tack range circles match 32/23 "
+                 "(7.95 px/unit at 2x), hero level cost = XP x 0.9 with Scholarships. See RESEARCH.md.")
+
+
 def slug(name):
     return name.lower().replace(" ", "_").replace("'", "")
 
@@ -291,8 +298,9 @@ def main():
     meta = {
         "source": "bloonswiki.com Cargo (btd6_towers, btd6_upgrades, btd6_heroes)",
         "fetched": datetime.date.today().isoformat(),
-        "game_version": None,
-        "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties",
+        "game_version": GAME_VERSION, "in_game_check": IN_GAME_CHECK,
+        "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties "
+                  "(and subtract account Monkey Knowledge discounts, data/account.json)",
         "stats": "per tower: placement, footprint (radius or rect, game units), range (game units), targeting, "
                  "range_by_tier[path][tier-1], abilities (cooldown s), overrides (tiers that change "
                  "placement/footprint/targeting). Single-path tiers only; bloons.rules.tower_range() "
@@ -316,7 +324,7 @@ def main():
     rounds_meta = {
         "source": "bloonswiki.com JSON:Bloons TD 6/Rounds/DefaultRoundSet + DefaultIncomeSet; RBE/layers/cash as in "
                   "Module:BTD6 rounds/new with Module:BTD6 rounds/stats",
-        "fetched": meta["fetched"], "game_version": None, "mode": "Standard (Easy ends at 40, Medium 60, Hard 80, "
+        "fetched": meta["fetched"], "game_version": GAME_VERSION, "in_game_check": IN_GAME_CHECK, "mode": "Standard (Easy ends at 40, Medium 60, Hard 80, "
                                                                    "Impoppable 100; rounds past the end are freeplay)",
         "first_freeplay_round": FIRST_FREEPLAY_ROUND,
         "times": "seconds at normal speed from round start; group bloons spawn evenly from start to end",

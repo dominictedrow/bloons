@@ -2,8 +2,9 @@
  "_meta": {
   "source": "bloonswiki.com Cargo (btd6_heroes), Module:BTD6 hero xp, <Hero> (BTD6) Levels tables, Module:BTD6 stats/<Hero>/new",
   "fetched": "2026-11-04",
-  "game_version": null,
-  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties",
+  "game_version": "57.4",
+  "in_game_check": "2026-11-04, BTD6+ 57.4, Monkey Meadow Easy sandbox: 33 shop/upgrade prices match bloons.rules.cost() (after fixing its rounding), Dart/Tack range circles match 32/23 (7.95 px/unit at 2x), hero level cost = XP x 0.9 with Scholarships. See RESEARCH.md.",
+  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties (and subtract account Monkey Knowledge discounts, data/account.json)",
   "level_xp": "XP to go from level n to n+1 (n = 1..19): the module's base table x xp_scale, rounded half up. A level can be bought with cash at $1 per remaining XP (wiki; difficulty scaling unchecked).",
   "xp_per_round": "XP gained at the end of round r: 20r+20 (r<=20), 40r-380 (r<=50), 90r-2880 (Module:BTD6 hero xp), before map-difficulty multipliers.",
   "stats": "only for heroes with a wiki dump: placement, footprint, targeting, range_by_level, abilities (unlock level, cooldown by level). null = read the ability bar in game."

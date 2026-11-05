@@ -2,8 +2,9 @@
  "_meta": {
   "source": "bloonswiki.com Cargo (btd6_towers, btd6_upgrades, btd6_heroes)",
   "fetched": "2026-11-04",
-  "game_version": null,
-  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties",
+  "game_version": "57.4",
+  "in_game_check": "2026-11-04, BTD6+ 57.4, Monkey Meadow Easy sandbox: 33 shop/upgrade prices match bloons.rules.cost() (after fixing its rounding), Dart/Tack range circles match 32/23 (7.95 px/unit at 2x), hero level cost = XP x 0.9 with Scholarships. See RESEARCH.md.",
+  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties (and subtract account Monkey Knowledge discounts, data/account.json)",
   "stats": "per tower: placement, footprint (radius or rect, game units), range (game units), targeting, range_by_tier[path][tier-1], abilities (cooldown s), overrides (tiers that change placement/footprint/targeting). Single-path tiers only; bloons.rules.tower_range() estimates crosspaths. stats.version is the game version of the wiki dump; null stats = measure in game."
  },
  "towers": {

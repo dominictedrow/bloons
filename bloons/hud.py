@@ -31,7 +31,7 @@ LIVES_MAX = 9_999
 MONEY_MAX = 99_999_999
 ROUND_MAX = 1_000
 
-_MONEY_RE = re.compile(r"\$(\d{1,3}(?:,\d{3})+|\d+)")
+_MONEY_RE = re.compile(r"\$(\d{1,3}(?:[,.]\d{3})+|\d+)")   # Vision sometimes reads , as .
 _ROUND_RE = re.compile(r"(\d{1,4})/(\d{1,4})")
 
 
@@ -62,12 +62,14 @@ def parse_lives(text) -> Optional[int]:
 
 def parse_money(text) -> Optional[int]:
     """'$1,357' -> 1357. The '$' is required (without it the box is probably clipping a
-    shifted HUD); thousands separators must be well-formed if present."""
+    shifted HUD); thousands separators must be well-formed if present. Vision sometimes
+    reads them as dots ('$9.999.609', seen in game): money never has cents, so a dot
+    followed by exactly three digits is a separator too."""
     vals = []
     for t in _tokens(text):
         m = _MONEY_RE.fullmatch(t)
         if m:
-            vals.append(int(m.group(1).replace(",", "")))
+            vals.append(int(re.sub(r"[,.]", "", m.group(1))))
     v = _single(vals)
     return v if v is not None and v <= MONEY_MAX else None
 

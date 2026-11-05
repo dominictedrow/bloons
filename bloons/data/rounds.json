@@ -2,7 +2,8 @@
  "_meta": {
   "source": "bloonswiki.com JSON:Bloons TD 6/Rounds/DefaultRoundSet + DefaultIncomeSet; RBE/layers/cash as in Module:BTD6 rounds/new with Module:BTD6 rounds/stats",
   "fetched": "2026-11-04",
-  "game_version": null,
+  "game_version": "57.4",
+  "in_game_check": "2026-11-04, BTD6+ 57.4, Monkey Meadow Easy sandbox: 33 shop/upgrade prices match bloons.rules.cost() (after fixing its rounding), Dart/Tack range circles match 32/23 (7.95 px/unit at 2x), hero level cost = XP x 0.9 with Scholarships. See RESEARCH.md.",
   "mode": "Standard (Easy ends at 40, Medium 60, Hard 80, Impoppable 100; rounds past the end are freeplay)",
   "first_freeplay_round": 81,
   "times": "seconds at normal speed from round start; group bloons spawn evenly from start to end",
