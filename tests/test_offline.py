@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bloons.coords import box_to_pixels, to_norm, to_screen
 from bloons.hud import Hud, HudFilter, parse_hud, parse_lives, parse_money, parse_round
-from bloons.rules import cost, upgrade_allowed
+from bloons.rules import cost, tower_abilities, tower_range, tower_shape, upgrade_allowed
 
 
 def test_cost():
@@ -328,6 +328,63 @@ def test_round_tracker_on_frames():
     assert out[-1].outcome == "win"
 
 
+def _towers():
+    import json
+    return json.loads((Path(__file__).resolve().parents[1] / "bloons/data/towers.json").read_text())["towers"]
+
+
+def test_tower_stats_data():
+    towers = _towers()
+    missing = {k for k, t in towers.items() if t["stats"] is None}
+    assert missing == {"banana_farm", "skywarden"}   # no wiki dump: measure in game
+    for k, t in towers.items():
+        st = t["stats"]
+        if st is None:
+            continue
+        assert st["placement"]["land"] or st["placement"]["water"], k
+        fp = st["footprint"]
+        assert ("radius" in fp and fp["radius"] > 0) or ("rect" in fp and min(fp["rect"]) > 0), k
+        assert st["range"] > 0 and len(st["range_by_tier"]) == 3 and all(len(p) == 5 for p in st["range_by_tier"]), k
+        for a in st["abilities"] or []:
+            assert 0 <= a["path"] <= 2 and 1 <= a["tier"] <= 5 and a["cooldown"] > 0 and a["name"], (k, a)
+    # spot checks against the game
+    d = towers["dart_monkey"]["stats"]
+    assert (d["range"], d["footprint"], d["placement"]) == (32, {"radius": 6}, {"land": True, "water": False})
+    assert towers["monkey_sub"]["stats"]["placement"] == {"land": False, "water": True}
+    assert towers["monkey_buccaneer"]["stats"]["placement"] == {"land": False, "water": True}
+    assert "rect" in towers["heli_pilot"]["stats"]["footprint"] and "rect" in towers["monkey_ace"]["stats"]["footprint"]
+    assert "patrol_points" in towers["heli_pilot"]["stats"]["targeting"]
+    assert towers["monkey_village"]["stats"]["footprint"] == {"radius": 11}
+
+
+def test_tower_range():
+    t = _towers()
+    dart = t["dart_monkey"]
+    assert tower_range(dart, (0, 0, 0)) == (32, True)
+    assert tower_range(dart, (0, 0, 2)) == (48, True)      # Enhanced Eyesight
+    assert tower_range(dart, (3, 0, 0)) == (36.8, True)    # Spike-o-pult x1.15
+    assert tower_range(dart, (3, 0, 2)) == (52.8, False)   # crosspath: estimate
+    assert tower_range(t["banana_farm"], (0, 0, 0)) == (None, False)
+    assert tower_range(t["monkey_village"], (1, 0, 0)) == (48, True)
+    assert tower_range(t["monkey_village"], (0, 1, 0)) == (None, False)   # not on the wiki
+
+
+def test_tower_abilities_and_shape():
+    t = _towers()
+    dart, sup = t["dart_monkey"], t["super_monkey"]
+    assert [a["name"] for a in tower_abilities(dart, (0, 4, 0))] == ["Super Monkey Fan Club"]
+    assert [a["name"] for a in tower_abilities(dart, (2, 5, 0))] == ["Plasma Monkey Fan Club"]
+    assert tower_abilities(dart, (2, 0, 3)) == []
+    assert tower_abilities(t["banana_farm"], (0, 0, 0)) is None
+    heli = [a["name"] for a in tower_abilities(t["heli_pilot"], (0, 5, 0))]
+    assert "Support Drop" in heli and len(heli) == 3
+    assert tower_shape(sup, (0, 0, 0))["footprint"] == {"radius": 11}
+    sun = tower_shape(sup, (4, 0, 2))                        # Sun Temple: bigger, can go on water
+    assert sun["footprint"] == {"rect": [37, 40]} and sun["placement"]["water"]
+    assert "strong" in tower_shape(t["ice_monkey"], (0, 0, 3))["targeting"]
+    assert tower_shape(t["ice_monkey"], (0, 0, 0))["targeting"] == ["close"]
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -335,6 +392,9 @@ if __name__ == "__main__":
     test_cost()
     test_upgrade_allowed()
     test_tower_data()
+    test_tower_stats_data()
+    test_tower_range()
+    test_tower_abilities_and_shape()
     test_hud_parse_fixtures()
     test_hud_parse_edge_cases()
     test_hud_filter()

@@ -1,9 +1,10 @@
 {
  "_meta": {
   "source": "bloonswiki.com Cargo (btd6_towers, btd6_upgrades, btd6_heroes)",
-  "fetched": "2026-11-03",
+  "fetched": "2026-11-04",
   "game_version": null,
-  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties"
+  "prices": "medium difficulty, before Monkey Knowledge; use bloons.rules.cost() for other difficulties",
+  "stats": "per tower: placement, footprint (radius or rect, game units), range (game units), targeting, range_by_tier[path][tier-1], abilities (cooldown s), overrides (tiers that change placement/footprint/targeting). Single-path tiers only; bloons.rules.tower_range() estimates crosspaths. stats.version is the game version of the wiki dump; null stats = measure in game."
  },
  "towers": {
   "alchemist": {
@@ -78,7 +79,65 @@
       "cost": 40000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Alchemist/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 45,
+    "range_by_tier": [
+     [
+      45,
+      45,
+      45,
+      45,
+      45
+     ],
+     [
+      45,
+      45,
+      45,
+      45,
+      45
+     ],
+     [
+      45,
+      45,
+      45,
+      45,
+      45
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Transforming Tonic",
+      "cooldown": 60,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Total Transformation",
+      "cooldown": 40,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "banana_farm": {
    "name": "Banana Farm",
@@ -152,7 +211,8 @@
       "cost": 70000
      }
     ]
-   ]
+   ],
+   "stats": null
   },
   "beast_handler": {
    "name": "Beast Handler",
@@ -226,7 +286,50 @@
       "cost": 30000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Beast Handler/new",
+    "version": "55.2",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 20,
+    "range_by_tier": [
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ]
+    ],
+    "abilities": [],
+    "overrides": []
+   }
   },
   "bomb_shooter": {
    "name": "Bomb Shooter",
@@ -300,7 +403,72 @@
       "cost": 30000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Bomb Shooter/new",
+    "version": "56.3",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 40,
+    "range_by_tier": [
+     [
+      40,
+      40,
+      40,
+      43,
+      43
+     ],
+     [
+      40,
+      44,
+      49,
+      54,
+      54
+     ],
+     [
+      52,
+      54,
+      54,
+      54,
+      54
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "MOAB Assassin",
+      "cooldown": 30,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "MOAB Eliminator",
+      "cooldown": 10,
+      "between_rounds": false
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "name": "Bomb Blitz",
+      "cooldown": 60,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "boomerang_monkey": {
    "name": "Boomerang Monkey",
@@ -374,7 +542,65 @@
       "cost": 50000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Boomerang Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 43,
+    "range_by_tier": [
+     [
+      43,
+      43,
+      43,
+      43,
+      43
+     ],
+     [
+      43,
+      43,
+      43,
+      43,
+      43
+     ],
+     [
+      57.19,
+      57.19,
+      57.19,
+      57.19,
+      57.19
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Turbo Charge",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Perma Charge",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "dart_monkey": {
    "name": "Dart Monkey",
@@ -448,7 +674,65 @@
       "cost": 21500
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Dart Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 32,
+    "range_by_tier": [
+     [
+      32,
+      32,
+      36.8,
+      36.8,
+      36.8
+     ],
+     [
+      32,
+      32,
+      32,
+      32,
+      32
+     ],
+     [
+      40,
+      48,
+      60,
+      60,
+      80
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Super Monkey Fan Club",
+      "cooldown": 50,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Plasma Monkey Fan Club",
+      "cooldown": 50,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "dartling_gunner": {
    "name": "Dartling Gunner",
@@ -522,7 +806,82 @@
       "cost": 58000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Dartling Gunner/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "normal",
+     "locked"
+    ],
+    "range": 20,
+    "range_by_tier": [
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ],
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ],
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Rocket Storm",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "M.A.D",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 2,
+      "tier": 4,
+      "targeting": [
+       "normal",
+       "locked",
+       "target_independant"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "targeting": [
+       "normal",
+       "locked",
+       "target_independant"
+      ]
+     }
+    ]
+   }
   },
   "desperado": {
    "name": "Desperado",
@@ -596,7 +955,86 @@
       "cost": 31000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Desperado/new",
+    "version": "55.2",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 60,
+    "range_by_tier": [
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      60,
+      60,
+      80,
+      80,
+      80
+     ],
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 3,
+      "name": "Take Aim",
+      "cooldown": 30,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Take Aim",
+      "cooldown": 30,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Marked to Pop",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Take Aim",
+      "cooldown": 30,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Marked to Pop",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "druid": {
    "name": "Druid",
@@ -670,7 +1108,65 @@
       "cost": 45000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Druid/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 35,
+    "range_by_tier": [
+     [
+      35,
+      35,
+      35,
+      35,
+      35
+     ],
+     [
+      35,
+      35,
+      35,
+      45,
+      45
+     ],
+     [
+      45,
+      45,
+      45,
+      45,
+      50
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Vine Crush",
+      "cooldown": 30,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Vine Crush",
+      "cooldown": 30,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "engineer_monkey": {
    "name": "Engineer Monkey",
@@ -744,7 +1240,65 @@
       "cost": 45000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Engineer Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 40,
+    "range_by_tier": [
+     [
+      40,
+      40,
+      40,
+      40,
+      40
+     ],
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      40,
+      40,
+      40,
+      40,
+      40
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Overclock",
+      "cooldown": 45,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Ultraboost",
+      "cooldown": 35,
+      "between_rounds": true
+     }
+    ],
+    "overrides": []
+   }
   },
   "glue_gunner": {
    "name": "Glue Gunner",
@@ -818,7 +1372,76 @@
       "cost": 24000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Glue Gunner/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 46,
+    "range_by_tier": [
+     [
+      46,
+      46,
+      46,
+      46,
+      46
+     ],
+     [
+      46,
+      46,
+      58,
+      58,
+      58
+     ],
+     [
+      46,
+      46,
+      46,
+      46,
+      46
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Glue Strike",
+      "cooldown": 40,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Glue Storm",
+      "cooldown": 40,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 1,
+      "tier": 5,
+      "targeting": [
+       "first",
+       "close",
+       "last",
+       "strong"
+      ]
+     }
+    ]
+   }
   },
   "heli_pilot": {
    "name": "Heli Pilot",
@@ -892,7 +1515,129 @@
       "cost": 35000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Heli Pilot/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "rect": [
+      27,
+      27
+     ]
+    },
+    "targeting": [
+     "follow_touch",
+     "lock_in_place",
+     "patrol_points"
+    ],
+    "range": 22,
+    "range_by_tier": [
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ],
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ],
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Redeploy",
+      "cooldown": 45,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Support Drop",
+      "cooldown": 90,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Redeploy",
+      "cooldown": 15,
+      "between_rounds": true
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Support Drop",
+      "cooldown": 90,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Special Poperations",
+      "cooldown": 25,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 0,
+      "tier": 2,
+      "targeting": [
+       "follow_touch",
+       "lock_in_place",
+       "patrol_points",
+       "pursuit"
+      ]
+     },
+     {
+      "path": 0,
+      "tier": 3,
+      "targeting": [
+       "follow_touch",
+       "lock_in_place",
+       "patrol_points",
+       "pursuit"
+      ]
+     },
+     {
+      "path": 0,
+      "tier": 4,
+      "targeting": [
+       "follow_touch",
+       "lock_in_place",
+       "patrol_points",
+       "pursuit"
+      ]
+     },
+     {
+      "path": 0,
+      "tier": 5,
+      "targeting": [
+       "follow_touch",
+       "lock_in_place",
+       "patrol_points",
+       "pursuit"
+      ]
+     }
+    ]
+   }
   },
   "ice_monkey": {
    "name": "Ice Monkey",
@@ -966,7 +1711,93 @@
       "cost": 30000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Ice Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": true
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "close"
+    ],
+    "range": 20,
+    "range_by_tier": [
+     [
+      20,
+      20,
+      25,
+      25,
+      25
+     ],
+     [
+      20,
+      20,
+      20,
+      30,
+      40
+     ],
+     [
+      27,
+      27,
+      46,
+      46,
+      46
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Snowstorm",
+      "cooldown": 30,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Absolute Zero",
+      "cooldown": 25,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 2,
+      "tier": 3,
+      "targeting": [
+       "first",
+       "last",
+       "close",
+       "strong"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 4,
+      "targeting": [
+       "first",
+       "last",
+       "close",
+       "strong"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "targeting": [
+       "first",
+       "last",
+       "close",
+       "strong"
+      ]
+     }
+    ]
+   }
   },
   "mermonkey": {
    "name": "Mermonkey",
@@ -1040,7 +1871,65 @@
       "cost": 25000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Mermonkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": true
+    },
+    "footprint": {
+     "radius": 8
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 28,
+    "range_by_tier": [
+     [
+      28,
+      28,
+      28,
+      28,
+      32
+     ],
+     [
+      28,
+      28,
+      32,
+      32,
+      40
+     ],
+     [
+      28,
+      28,
+      28,
+      32,
+      38
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Arctic Knight",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Popseidon",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "monkey_ace": {
    "name": "Monkey Ace",
@@ -1114,7 +2003,108 @@
       "cost": 90000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Monkey Ace/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "rect": [
+      28,
+      18
+     ]
+    },
+    "targeting": [
+     "circle",
+     "figure_infinite",
+     "figure_eight"
+    ],
+    "range": 22,
+    "range_by_tier": [
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ],
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ],
+     [
+      22,
+      22,
+      22,
+      22,
+      22
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Ground Zero",
+      "cooldown": 35,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Tsar Bomba",
+      "cooldown": 35,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 2,
+      "tier": 2,
+      "targeting": [
+       "circle",
+       "figure_infinite",
+       "figure_eight",
+       "centered"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 3,
+      "targeting": [
+       "circle",
+       "figure_infinite",
+       "figure_eight",
+       "centered"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 4,
+      "targeting": [
+       "circle",
+       "figure_infinite",
+       "figure_eight",
+       "centered"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "targeting": [
+       "circle",
+       "figure_infinite",
+       "figure_eight",
+       "centered"
+      ]
+     }
+    ]
+   }
   },
   "monkey_buccaneer": {
    "name": "Monkey Buccaneer",
@@ -1188,7 +2178,65 @@
       "cost": 23000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Monkey Buccaneer/new",
+    "version": "55.1",
+    "placement": {
+     "land": false,
+     "water": true
+    },
+    "footprint": {
+     "radius": 8
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 60,
+    "range_by_tier": [
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      60,
+      60,
+      60,
+      60,
+      60
+     ],
+     [
+      71,
+      71,
+      71,
+      71,
+      71
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Monkey Pirates",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Pirate Lord",
+      "cooldown": 30,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "monkey_sub": {
    "name": "Monkey Sub",
@@ -1262,7 +2310,65 @@
       "cost": 25000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Monkey Sub/new",
+    "version": "55.1",
+    "placement": {
+     "land": false,
+     "water": true
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 42,
+    "range_by_tier": [
+     [
+      52,
+      52,
+      52,
+      52,
+      52
+     ],
+     [
+      42,
+      42,
+      50,
+      50,
+      50
+     ],
+     [
+      42,
+      42,
+      42,
+      42,
+      42
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "First Strike Capability",
+      "cooldown": 60,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Pre-emptive Strike",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "monkey_village": {
    "name": "Monkey Village",
@@ -1336,7 +2442,45 @@
       "cost": 5000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Stats:Monkey Village (BTD6)",
+    "version": "46.2",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 11
+    },
+    "range": 40,
+    "targeting": [],
+    "range_by_tier": [
+     [
+      48,
+      null,
+      null,
+      null,
+      55
+     ],
+     [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     [
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    ],
+    "abilities": null,
+    "overrides": []
+   }
   },
   "mortar_monkey": {
    "name": "Mortar Monkey",
@@ -1410,7 +2554,62 @@
       "cost": 40000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Mortar Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 11
+    },
+    "targeting": [
+     "target_selected_point"
+    ],
+    "range": 30,
+    "range_by_tier": [
+     [
+      30,
+      30,
+      30,
+      30,
+      30
+     ],
+     [
+      30,
+      30,
+      30,
+      30,
+      30
+     ],
+     [
+      30,
+      30,
+      30,
+      30,
+      30
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Artillery Battery",
+      "cooldown": 60,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Pop and Awe",
+      "cooldown": 60,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "ninja_monkey": {
    "name": "Ninja Monkey",
@@ -1484,7 +2683,65 @@
       "cost": 40000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Ninja Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 40,
+    "range_by_tier": [
+     [
+      40,
+      40,
+      40,
+      40,
+      50
+     ],
+     [
+      40,
+      40,
+      40,
+      40,
+      40
+     ],
+     [
+      47,
+      47,
+      47,
+      47,
+      47
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Bloon Sabotage",
+      "cooldown": 60,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Grand Saboteur",
+      "cooldown": 60,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   },
   "skywarden": {
    "name": "Skywarden",
@@ -1558,7 +2815,8 @@
       "cost": 20000
      }
     ]
-   ]
+   ],
+   "stats": null
   },
   "sniper_monkey": {
    "name": "Sniper Monkey",
@@ -1632,7 +2890,84 @@
       "cost": 14900
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Sniper Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 20,
+    "range_by_tier": [
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ],
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ],
+     [
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Supply Drop",
+      "cooldown": 90,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Elite Sniper",
+      "cooldown": 90,
+      "between_rounds": false
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "name": "Elite Defender",
+      "cooldown": 10,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 1,
+      "tier": 5,
+      "targeting": [
+       "elite",
+       "first",
+       "last",
+       "close",
+       "strong"
+      ]
+     }
+    ]
+   }
   },
   "spike_factory": {
    "name": "Spike Factory",
@@ -1706,7 +3041,107 @@
       "cost": 30000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Spike Factory/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 8
+    },
+    "targeting": [
+     "track"
+    ],
+    "range": 34,
+    "range_by_tier": [
+     [
+      34,
+      34,
+      34,
+      34,
+      34
+     ],
+     [
+      34,
+      34,
+      34,
+      34,
+      50
+     ],
+     [
+      42,
+      42,
+      42,
+      42,
+      42
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Spike Storm",
+      "cooldown": 50,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Carpet of Spikes",
+      "cooldown": 50,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 2,
+      "tier": 2,
+      "targeting": [
+       "track",
+       "close_track",
+       "smart_track",
+       "target_selected_point",
+       "auto_track"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 3,
+      "targeting": [
+       "track",
+       "close_track",
+       "smart_track",
+       "target_selected_point",
+       "auto_track"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 4,
+      "targeting": [
+       "track",
+       "close_track",
+       "smart_track",
+       "target_selected_point",
+       "auto_track"
+      ]
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "targeting": [
+       "track",
+       "close_track",
+       "smart_track",
+       "target_selected_point",
+       "auto_track"
+      ]
+     }
+    ]
+   }
   },
   "super_monkey": {
    "name": "Super Monkey",
@@ -1780,7 +3215,115 @@
       "cost": 165650
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Super Monkey/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 11
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 50,
+    "range_by_tier": [
+     [
+      50,
+      50,
+      50,
+      65,
+      65
+     ],
+     [
+      60,
+      72,
+      72,
+      72,
+      82
+     ],
+     [
+      50,
+      53,
+      53,
+      57,
+      57
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Tech Terror",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "The Anti-Bloon",
+      "cooldown": 30,
+      "between_rounds": false
+     },
+     {
+      "path": 2,
+      "tier": 3,
+      "name": "Dark Knight",
+      "cooldown": 20,
+      "between_rounds": true
+     },
+     {
+      "path": 2,
+      "tier": 4,
+      "name": "Dark Champion",
+      "cooldown": 20,
+      "between_rounds": true
+     },
+     {
+      "path": 2,
+      "tier": 5,
+      "name": "Legend of the Night",
+      "cooldown": 20,
+      "between_rounds": true
+     }
+    ],
+    "overrides": [
+     {
+      "path": 0,
+      "tier": 4,
+      "placement": {
+       "land": true,
+       "water": true
+      },
+      "footprint": {
+       "rect": [
+        37,
+        40
+       ]
+      }
+     },
+     {
+      "path": 0,
+      "tier": 5,
+      "placement": {
+       "land": true,
+       "water": true
+      },
+      "footprint": {
+       "rect": [
+        37,
+        40
+       ]
+      }
+     }
+    ]
+   }
   },
   "tack_shooter": {
    "name": "Tack Shooter",
@@ -1854,7 +3397,73 @@
       "cost": 20000
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Tack Shooter/new",
+    "version": "55.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 6
+    },
+    "targeting": [
+     "close"
+    ],
+    "range": 23,
+    "range_by_tier": [
+     [
+      23,
+      23,
+      23,
+      23,
+      34.5
+     ],
+     [
+      26.91,
+      30.82,
+      46,
+      46,
+      46
+     ],
+     [
+      23,
+      23,
+      23,
+      23,
+      30
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Blade Maelstrom",
+      "cooldown": 20,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Super Maelstrom",
+      "cooldown": 20,
+      "between_rounds": false
+     }
+    ],
+    "overrides": [
+     {
+      "path": 0,
+      "tier": 5,
+      "targeting": [
+       "first",
+       "last",
+       "close",
+       "strong"
+      ]
+     }
+    ]
+   }
   },
   "wizard_monkey": {
    "name": "Wizard Monkey",
@@ -1928,7 +3537,65 @@
       "cost": 26500
      }
     ]
-   ]
+   ],
+   "stats": {
+    "source": "Module:BTD6 stats/Wizard Monkey/new",
+    "version": "56.1",
+    "placement": {
+     "land": true,
+     "water": false
+    },
+    "footprint": {
+     "radius": 7
+    },
+    "targeting": [
+     "first",
+     "last",
+     "close",
+     "strong"
+    ],
+    "range": 40,
+    "range_by_tier": [
+     [
+      40,
+      40,
+      60,
+      60,
+      60
+     ],
+     [
+      40,
+      40,
+      40,
+      40,
+      40
+     ],
+     [
+      40,
+      50,
+      60,
+      60,
+      80
+     ]
+    ],
+    "abilities": [
+     {
+      "path": 1,
+      "tier": 4,
+      "name": "Summon Phoenix",
+      "cooldown": 45,
+      "between_rounds": false
+     },
+     {
+      "path": 1,
+      "tier": 5,
+      "name": "Wizard Lord Phoenix",
+      "cooldown": 45,
+      "between_rounds": false
+     }
+    ],
+    "overrides": []
+   }
   }
  }
 }

@@ -83,7 +83,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 1.5 Round-state + outcome detection + offline tests (live-checked 2026-11-04: one Easy game, loss at round 30)
 
 ## Phase 2 — Static game data
-- [ ] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water — *costs, upgrade names and hotkeys done via `scripts/fetch_wiki_data.py`; range/abilities/footprint/land-water still to add*
+- [x] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water — *all from the wiki via `scripts/fetch_wiki_data.py`. Gaps to measure in game: Banana Farm and Skywarden stats, Monkey Village tiers other than 100/500 and its abilities; crosspath ranges are estimates (5.5)*
 - [ ] 2.2 `heroes.json`: cost, level-up costs, abilities by level — *cost + xp_scale done; level-up costs and abilities still to add*
 - [ ] 2.3 `rounds.json`: Standard rounds 1–140 (types, counts, properties)
 - [x] 2.4 Cost helper `cost(base, difficulty)` + crosspath rule `upgrade_allowed(tiers, path)` + tests
