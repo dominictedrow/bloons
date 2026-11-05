@@ -87,10 +87,10 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 2.2 `heroes.json`: cost, level-up costs, abilities by level — *XP table + $1/XP cash rule and level descriptions for all 18; abilities/range/footprint only for the 6 heroes with a wiki dump (rest: read the ability bar, 5.4)*
 - [x] 2.3 `rounds.json`: Standard rounds 1–140 (types, counts, properties) — *plus spawn times, RBE, layers, pop cash, end bonus; RBE/cash/duration match the wiki's rendered table for all 140*
 - [x] 2.4 Cost helper `cost(base, difficulty)` + crosspath rule `upgrade_allowed(tiers, path)` + tests
-- [ ] 2.5 Stamp the game version. Spot-check 10 costs against the in-game panel
+- [x] 2.5 Stamp the game version. Spot-check 10 costs against the in-game panel — *33 prices checked; fixed `cost()` rounding; Monkey Knowledge effects in `account.json`; Dart/Tack ranges confirmed (7.95 px/unit)*
 
 ## Phase 3 — Map calibration (Monkey Meadow, Tree Stump, Town Center, Logs)
-- [ ] 3.1 `ui.json`: shared UI coords (tower shop, upgrade panel buttons, sell, targeting, ability bar, settings/auto-start, FF)
+- [x] 3.1 `ui.json`: shared UI coords (tower shop, upgrade panel buttons, sell, targeting, ability bar, settings/auto-start, FF) — *plus hero panel, pause, menus, defeat/restart buttons; `bloons/ui.py` accessors; shop scrolls (HID wheel), two scroll layouts*
 - [ ] 3.2 `calibrate.py mask <map>`: grid sweep while holding a tower, reading the red tint → placeable masks per footprint (land/water)
 - [ ] 3.3 `calibrate.py path <map>`: frame-difference bloons on round 1 → polyline, then a hand-correct click tool
 - [ ] 3.4 Obstacles: click points + IDs per map

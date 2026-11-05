@@ -3,7 +3,7 @@
   "game_version": "57.4",
   "calibrated": "2026-11-04",
   "coords": "normalized 0-1 over the game's content area (window minus title bar); [x0, y0, x1, y1] boxes, [x, y] points",
-  "source": "measured on windowed 1470x830 pt screenshots, Monkey Meadow"
+  "source": "measured on windowed 1470x830 pt (2x) frames, Monkey Meadow: fixtures_full/ + live Easy Sandbox (step 3.1)"
  },
  "window": {
   "expected_pt": [
@@ -44,10 +44,478 @@
   "pause_auto_start_toggle": [
    0.7,
    0.285
-  ]
+  ],
+  "settings": [
+   0.821,
+   0.035
+  ],
+  "powers": [
+   0.877,
+   0.94
+  ],
+  "_notes": "powers opens the powers list in a game; in Sandbox the same button toggles the bloon-sending panel and the tower shop. play_ff = Space (confirmed)."
  },
  "timing_s": {
   "after_tower_key": 0.5,
   "after_click": 0.3
+ },
+ "shop": {
+  "_notes": "Cell i of 'order' sits in row i//2, column i%2. 6 rows fit. Scroll with HID wheel events over scroll_point: after scrolling all the way up, rows 0-5 show (row r at top_row0_y + r*row_pitch); after scrolling all the way down, rows 8-13 show (row r at bottom_row13_y - (13-r)*row_pitch). Only towers without a hotkey (desperado: top layout; mermonkey, skywarden: bottom layout) need clicks.",
+  "order": [
+   "hero",
+   "dart_monkey",
+   "boomerang_monkey",
+   "bomb_shooter",
+   "tack_shooter",
+   "ice_monkey",
+   "glue_gunner",
+   "desperado",
+   "sniper_monkey",
+   "monkey_sub",
+   "monkey_buccaneer",
+   "monkey_ace",
+   "heli_pilot",
+   "mortar_monkey",
+   "dartling_gunner",
+   "wizard_monkey",
+   "super_monkey",
+   "ninja_monkey",
+   "alchemist",
+   "druid",
+   "mermonkey",
+   "skywarden",
+   "banana_farm",
+   "spike_factory",
+   "monkey_village",
+   "engineer_monkey",
+   "beast_handler"
+  ],
+  "columns_x": [
+   0.878,
+   0.935
+  ],
+  "row_pitch": 0.1248,
+  "cell_size": [
+   0.052,
+   0.115
+  ],
+  "top_row0_y": 0.2077,
+  "top_rows": [
+   0,
+   5
+  ],
+  "bottom_row13_y": 0.814,
+  "bottom_rows": [
+   8,
+   13
+  ],
+  "selected_name": [
+   0.858,
+   0.085,
+   0.955,
+   0.125
+  ],
+  "scroll_point": [
+   0.906,
+   0.5
+  ]
+ },
+ "upgrade_panel": {
+  "_notes": "The panel opens on the side opposite the selected tower; find the side with the sell_button template. Left = right shifted by -dx in x (sell_button centres 0.7959 vs 0.1823). ability_icon is the big icon shown next to the panel when the selection has an activated ability (not a dx shift). Towers without targeting (e.g. Tack) show no targeting label. Hero panel: the path rows are replaced by hero_level / hero_level_up / hero_level_price; sell is the same.",
+  "dx": 0.6136,
+  "right": {
+   "panel": [
+    0.6456,
+    0.052,
+    0.8438,
+    0.879
+   ],
+   "close": [
+    0.831,
+    0.07
+   ],
+   "title": [
+    0.66,
+    0.055,
+    0.83,
+    0.087
+   ],
+   "info": [
+    0.666,
+    0.145
+   ],
+   "pops": [
+    0.735,
+    0.095,
+    0.775,
+    0.115
+   ],
+   "targeting_label": [
+    0.7,
+    0.33,
+    0.79,
+    0.362
+   ],
+   "targeting_prev": [
+    0.673,
+    0.346
+   ],
+   "targeting_next": [
+    0.813,
+    0.346
+   ],
+   "path_buttons": [
+    [
+     0.795,
+     0.45
+    ],
+    [
+     0.795,
+     0.588
+    ],
+    [
+     0.795,
+     0.727
+    ]
+   ],
+   "path_prices": [
+    [
+     0.772,
+     0.482,
+     0.828,
+     0.513
+    ],
+    [
+     0.772,
+     0.62,
+     0.828,
+     0.652
+    ],
+    [
+     0.772,
+     0.76,
+     0.828,
+     0.792
+    ]
+   ],
+   "path_names": [
+    [
+     0.758,
+     0.383,
+     0.832,
+     0.425
+    ],
+    [
+     0.758,
+     0.521,
+     0.832,
+     0.563
+    ],
+    [
+     0.758,
+     0.66,
+     0.832,
+     0.702
+    ]
+   ],
+   "path_current": [
+    [
+     0.665,
+     0.41,
+     0.75,
+     0.485
+    ],
+    [
+     0.665,
+     0.548,
+     0.75,
+     0.623
+    ],
+    [
+     0.665,
+     0.686,
+     0.75,
+     0.761
+    ]
+   ],
+   "sell": [
+    0.7959,
+    0.8417
+   ],
+   "sell_value": [
+    0.672,
+    0.822,
+    0.738,
+    0.858
+   ],
+   "hero_level": [
+    0.7,
+    0.395,
+    0.79,
+    0.425
+   ],
+   "hero_level_up": [
+    0.744,
+    0.632
+   ],
+   "hero_level_price": [
+    0.69,
+    0.612,
+    0.8,
+    0.652
+   ],
+   "ability_icon": [
+    0.614,
+    0.182
+   ]
+  },
+  "left": {
+   "panel": [
+    0.032,
+    0.052,
+    0.2302,
+    0.879
+   ],
+   "close": [
+    0.2174,
+    0.07
+   ],
+   "title": [
+    0.0464,
+    0.055,
+    0.2164,
+    0.087
+   ],
+   "info": [
+    0.0524,
+    0.145
+   ],
+   "pops": [
+    0.1214,
+    0.095,
+    0.1614,
+    0.115
+   ],
+   "targeting_label": [
+    0.0864,
+    0.33,
+    0.1764,
+    0.362
+   ],
+   "targeting_prev": [
+    0.0594,
+    0.346
+   ],
+   "targeting_next": [
+    0.1994,
+    0.346
+   ],
+   "path_buttons": [
+    [
+     0.1814,
+     0.45
+    ],
+    [
+     0.1814,
+     0.588
+    ],
+    [
+     0.1814,
+     0.727
+    ]
+   ],
+   "path_prices": [
+    [
+     0.1584,
+     0.482,
+     0.2144,
+     0.513
+    ],
+    [
+     0.1584,
+     0.62,
+     0.2144,
+     0.652
+    ],
+    [
+     0.1584,
+     0.76,
+     0.2144,
+     0.792
+    ]
+   ],
+   "path_names": [
+    [
+     0.1444,
+     0.383,
+     0.2184,
+     0.425
+    ],
+    [
+     0.1444,
+     0.521,
+     0.2184,
+     0.563
+    ],
+    [
+     0.1444,
+     0.66,
+     0.2184,
+     0.702
+    ]
+   ],
+   "path_current": [
+    [
+     0.0514,
+     0.41,
+     0.1364,
+     0.485
+    ],
+    [
+     0.0514,
+     0.548,
+     0.1364,
+     0.623
+    ],
+    [
+     0.0514,
+     0.686,
+     0.1364,
+     0.761
+    ]
+   ],
+   "sell": [
+    0.1823,
+    0.8417
+   ],
+   "sell_value": [
+    0.0584,
+    0.822,
+    0.1244,
+    0.858
+   ],
+   "hero_level": [
+    0.0864,
+    0.395,
+    0.1764,
+    0.425
+   ],
+   "hero_level_up": [
+    0.1304,
+    0.632
+   ],
+   "hero_level_price": [
+    0.0764,
+    0.612,
+    0.1864,
+    0.652
+   ],
+   "ability_icon": [
+    0.259,
+    0.182
+   ]
+  }
+ },
+ "ability_bar": {
+  "_notes": "Bottom-left, one icon per activated ability, left to right; the bottom of each icon is cut off by the screen edge. chevron collapses/expands the bar. With the panel open on the left the whole bar moves right by panel_left_dx. Hotkeys 1-0,-,= untested.",
+  "chevron": [
+   0.059,
+   0.957
+  ],
+  "slot0": [
+   0.118,
+   0.955
+  ],
+  "slot_pitch": 0.05,
+  "panel_left_dx": 0.209
+ },
+ "pause": {
+  "_notes": "Open with Escape (with nothing selected) or Backquote; it zooms in, so wait ~0.8 s before reading or clicking. Same layout in Standard and Sandbox.",
+  "auto_start_toggle": [
+   0.7,
+   0.2826
+  ],
+  "game_hints_toggle": [
+   0.7,
+   0.352
+  ],
+  "drag_drop_toggle": [
+   0.449,
+   0.283
+  ],
+  "hotkeys": [
+   0.196,
+   0.283
+  ],
+  "home": [
+   0.386,
+   0.776
+  ],
+  "restart": [
+   0.499,
+   0.776
+  ],
+  "continue": [
+   0.6125,
+   0.776
+  ]
+ },
+ "menus": {
+  "home_play": [
+   0.5,
+   0.872
+  ],
+  "map_monkey_meadow": [
+   0.2875,
+   0.235
+  ],
+  "difficulty_easy": [
+   0.3325,
+   0.374
+  ],
+  "mode_standard": [
+   0.336,
+   0.544
+  ],
+  "mode_sandbox": [
+   0.5,
+   0.684
+  ],
+  "sandbox_popup_ok": [
+   0.5,
+   0.703
+  ],
+  "victory_next": [
+   0.5,
+   0.84
+  ],
+  "collect": [
+   0.5,
+   0.625
+  ],
+  "defeat_home": [
+   0.3316,
+   0.7474
+  ],
+  "defeat_restart": [
+   0.4432,
+   0.7474
+  ],
+  "defeat_review_map": [
+   0.5544,
+   0.7474
+  ],
+  "defeat_continue": [
+   0.6657,
+   0.7474
+  ],
+  "restart_confirm_cancel": [
+   0.4105,
+   0.677
+  ],
+  "restart_confirm_restart": [
+   0.5874,
+   0.677
+  ]
  }
 }

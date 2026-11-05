@@ -10,13 +10,64 @@ from bloons.rules import (cost, hero_abilities, hero_level_cost, hero_range, her
                           tower_abilities, tower_range, tower_shape, upgrade_allowed)
 
 
+# (base $, Easy price seen in game) - step 2.5, Monkey Meadow Easy sandbox, game 57.4
+EASY_PRICES_SEEN = [
+    (200, 170), (375, 320), (260, 220), (400, 340), (225, 190), (300, 255), (350, 300), (325, 275),
+    (800, 680), (1200, 1020),                                              # shop (+ hero)
+    (140, 120), (200, 170), (320, 275), (1800, 1530), (15000, 12750), (100, 85), (190, 160), (90, 75),
+    (280, 240), (600, 510), (2000, 1700), (175, 150), (300, 255),          # dart, boomerang
+    (225, 190), (550, 470), (2700, 2295), (150, 130), (220, 190),          # tack
+    (500, 425), (250, 215), (450, 385), (220, 190), (200, 170),            # engineer, bomb
+]
+
+
 def test_cost():
-    # Dart Monkey base $200
+    for base, seen in EASY_PRICES_SEEN:
+        assert cost(base, "easy") == seen, (base, seen)
     assert [cost(200, d) for d in ("easy", "medium", "hard", "impoppable")] == [170, 200, 215, 240]
-    assert cost(220, "easy") == 185  # 187 -> 185
-    assert cost(140, "easy") == 120  # 119 -> 120
-    assert cost(50, "easy") == 40    # 42.5 tie -> even multiple
-    assert cost(150, "easy") == 130  # 127.5 tie -> even multiple
+    assert cost(320, "easy") == 275 and cost(220, "easy") == 190   # x20 bases round up (wiki: down)
+    assert cost(250, "easy") == 215 and cost(450, "easy") == 385   # ties round up (wiki: to even)
+    assert cost(315, "easy") - 50 == 220                            # Boomerang after MK "Cheap 'Rangs"
+
+
+# Easy shop prices seen in game (3.1, all 26 towers + hero, Dom's Monkey Knowledge active)
+EASY_SHOP_SEEN = {
+    "dart_monkey": 170, "boomerang_monkey": 220, "bomb_shooter": 320, "tack_shooter": 220, "ice_monkey": 340,
+    "glue_gunner": 190, "desperado": 255, "sniper_monkey": 300, "monkey_sub": 275, "monkey_buccaneer": 340,
+    "monkey_ace": 680, "heli_pilot": 1275, "mortar_monkey": 510, "dartling_gunner": 720, "wizard_monkey": 210,
+    "super_monkey": 2125, "ninja_monkey": 340, "alchemist": 470, "druid": 340, "mermonkey": 255,
+    "skywarden": 175, "banana_farm": 945, "spike_factory": 700, "monkey_village": 1000,
+    "engineer_monkey": 300, "beast_handler": 210,
+}
+
+
+def test_shop_prices():
+    import json
+    from bloons.rules import shop_price, upgrade_price
+    root = Path(__file__).resolve().parents[1] / "bloons/data"
+    towers = json.loads((root / "towers.json").read_text())["towers"]
+    acc = json.loads((root / "account.json").read_text())
+    assert set(EASY_SHOP_SEEN) == set(towers)
+    for name, seen in EASY_SHOP_SEEN.items():
+        assert shop_price(name, towers[name]["cost"], "easy", acc) == seen, (name, seen)
+    assert cost(1200, "easy", "tower") == 1020                                    # hero
+    assert cost(250, "easy", "tower") == 210 and cost(250, "easy") == 215         # tie: tower even, upgrade up
+    # first-only discounts drop off for the 2nd Farm / Spike Factory
+    assert shop_price("spike_factory", 1000, "easy", acc, first=False) == 850
+    assert shop_price("banana_farm", 1250, "easy", acc, first=False) == 1040      # 1062.5 x 0.98 = 1041.25
+    assert shop_price("dart_monkey", 200, "easy") == 170                           # no account
+    # MK upgrade discounts (read off the tree, not yet checked in game)
+    assert upgrade_price("ninja_monkey", 0, 3, 900, "medium", acc) == 800
+    assert upgrade_price("ninja_monkey", 0, 2, 350, "medium", acc) == 350
+
+
+def test_account_data():
+    import json
+    acc = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/account.json").read_text())
+    assert acc["_meta"]["game_version"]
+    mk = acc["monkey_knowledge"]
+    assert mk["cheap_rangs"]["active"] and mk["scholarships"]["training_discount"] == 0.1
+    assert all("active" in v and v["evidence"] for v in mk.values())
 
 
 def test_tower_data():
@@ -53,8 +104,80 @@ def test_ui_data():
     assert ui["_meta"]["game_version"]
     for x0, y0, x1, y1 in ui["hud"].values():
         assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1
-    for x, y in ui["buttons"].values():
-        assert 0 <= x <= 1 and 0 <= y <= 1
+    def points(v):   # every [x, y] point / [x0, y0, x1, y1] box anywhere in a section
+        if isinstance(v, dict):
+            return [p for k, x in v.items() if not k.startswith("_") for p in points(x)]
+        if isinstance(v, list) and v and isinstance(v[0], (int, float)):
+            return [v] if len(v) in (2, 4) else []
+        return [p for x in v for p in points(x)] if isinstance(v, list) else []
+    for sec in ("buttons", "upgrade_panel", "ability_bar", "pause", "menus"):
+        pts = points(ui[sec])
+        assert pts, sec
+        for p in pts:
+            assert all(0 <= c <= 1 for c in p), (sec, p)
+            if len(p) == 4:
+                assert p[0] < p[2] and p[1] < p[3], (sec, p)
+
+
+UI_FIX = Path(__file__).resolve().parents[1] / "bloons/data/fixtures/ui"
+
+
+def test_ui_shop():
+    import json
+    import cv2
+    from bloons.ui import UI, shop_cell
+    towers = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/towers.json").read_text())["towers"]
+    order = UI["shop"]["order"]
+    assert len(order) == len(set(order)) and set(order) == set(towers) | {"hero"}
+    # towers without a hotkey must be clickable in one of the two scroll layouts
+    assert shop_cell("desperado")[0] == "top"
+    assert {shop_cell(n)[0] for n in ("mermonkey", "skywarden")} == {"bottom"}
+    for n, t in towers.items():
+        if t["hotkey"] is None:
+            shop_cell(n)
+    lay, (x, y) = shop_cell("dart_monkey")
+    assert lay == "top" and abs(x - 0.935) < 1e-9 and abs(y - 0.2077) < 1e-9
+    # scrolled-bottom frame: magic rows (8-10) have purple cells, support rows (11-13) orange
+    img = cv2.imread(str(UI_FIX / "shop_scrolled_bottom.jpg")).astype(int)
+    h, w = img.shape[:2]
+    cw, ch = UI["shop"]["cell_size"]
+    for n in order[16:]:
+        lay, (x, y) = shop_cell(n)
+        c = img[int((y - ch / 2) * h):int((y + ch / 2) * h), int((x - cw / 2) * w):int((x + cw / 2) * w)]
+        b, g, r = c[..., 0], c[..., 1], c[..., 2]
+        purple = ((b > 200) & (r > 130) & (g < 180)).mean()
+        orange = ((r > 220) & (b < 170) & (g > 120) & (g < 225)).mean()
+        magic = order.index(n) < 22
+        assert lay == "bottom" and (purple if magic else orange) > 0.25 and (orange if magic else purple) < 0.1, \
+            (n, purple, orange)
+
+
+def test_ui_panel():
+    import cv2
+    from bloons.state import read_screen
+    from bloons.ui import UI, ability_slot, panel
+    from bloons.vision import Templates
+    t = Templates()
+    dx = UI["upgrade_panel"]["dx"]
+    R, L = panel("right"), panel("left")
+    assert abs(R["sell"][0] - L["sell"][0] - dx) < 1e-6 and R["path_buttons"][1][1] == L["path_buttons"][1][1]
+    frames = [(s, f["sell_side"], img) for s, f, img in _frames() if "sell_side" in f]
+    frames += [(n, side, cv2.imread(str(UI_FIX / f"{n}.jpg"))) for n, side in
+               (("panel_left_ability_boomerang_040", "left"), ("hero_panel_right_benjamin_l3", "right"))]
+    for stem, side, img in frames:
+        assert read_screen(img).panel == side, stem
+        x, y = t.match(img, "sell_button").center
+        sx, sy = panel(side)["sell"]
+        assert abs(x - sx) < 0.005 and abs(y - sy) < 0.005, stem
+    # ability bar: 2 slots in this frame, nothing at a 3rd slot (plain grass there)
+    img = cv2.imread(str(UI_FIX / "ability_bar_two_slots.jpg"))
+    h, w = img.shape[:2]
+    def dark_frac(i):   # icons have dark outlines; grass has none
+        x, y = ability_slot(i)
+        patch = img[int((y - 0.03) * h):int((y + 0.02) * h), int((x - 0.02) * w):int((x + 0.02) * w)]
+        return float((patch.max(axis=2) < 70).mean())
+    assert dark_frac(0) > 0.04 and dark_frac(1) > 0.04 and dark_frac(2) < 0.01, [dark_frac(i) for i in range(3)]
+    assert ability_slot(0, "left")[0] > ability_slot(0)[0] + 0.2
 
 
 def test_fixture_crops():
@@ -100,6 +223,8 @@ def test_hud_parse_edge_cases():
     # thousands separators must be well-formed
     assert parse_money("$12,345,678") == 12345678
     assert parse_money("$1,35") is None and parse_money("$13,57") is None
+    assert parse_money("$9.999.609") == 9999609 and parse_money("$1.020") == 1020   # seen in game
+    assert parse_money("$1.5") is None
     # digit confusables, only inside numeric-looking tokens
     assert parse_lives("2OO") == 200 and parse_lives("l89") == 189
     assert parse_money("$1,3S7") == 1357
@@ -411,6 +536,7 @@ def test_hero_rules():
     assert [hero_xp_for_round(r) for r in (1, 20, 21, 50, 51)] == [40, 420, 460, 1620, 1710]
     assert hero_xp_to_reach(q, 1) == 0 and hero_xp_to_reach(q, 3) == 640   # = the module's xpLv3
     assert hero_level_cost(q, 1) == 180 and hero_level_cost(q, 1, 100) == 80 and hero_level_cost(q, 20) is None
+    assert hero_level_cost(h["benjamin"], 1, training_discount=0.1) == 243   # seen in game (Scholarships)
     assert hero_abilities(q, 2) == []
     assert hero_abilities(q, 3) == [{"name": "Rapid Shot", "level": 3, "cooldown": 60}]
     late = {a["name"]: a["cooldown"] for a in hero_abilities(q, 20)}
@@ -447,6 +573,7 @@ if __name__ == "__main__":
     test_coords()
     test_ui_data()
     test_cost()
+    test_account_data()
     test_upgrade_allowed()
     test_tower_data()
     test_tower_stats_data()

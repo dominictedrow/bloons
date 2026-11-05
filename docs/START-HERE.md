@@ -1,16 +1,16 @@
 # START HERE
 
-**Current phase / step:** Phase 2 → step 2.5 (version stamp + in-game spot check). Phase 0, 1, and 2.1–2.4 done.
-**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). `bloons/vision.py` matches templates (`match`, `button_state`) on `Frame.content_bgr()`; `bloons/state.py` gives screen kind + `RoundTracker` (round_active / round_ended / outcome). Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/020-2026-11-04.md](handoffs/020-2026-11-04.md)
+**Current phase / step:** Phase 3 → step 3.2 (placeable masks). Phases 0–2 and step 3.1 done.
+**Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). `bloons/vision.py` matches templates (`match`, `button_state`) on `Frame.content_bgr()`; `bloons/state.py` gives screen kind + `RoundTracker` (round_active / round_ended / outcome). `bloons/ui.py` gives shop cells (2 scroll layouts), both upgrade-panel sides, the hero panel and ability slots from `data/ui.json`. Never send modifier events; `refocus()` recovers keys. `rules.shop_price` / `upgrade_price` apply Dom's Monkey Knowledge (`data/account.json`). **Uncommitted: steps 2.5 and 3.1.** Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
+**Last handoff:** [handoffs/023-2026-11-04.md](handoffs/023-2026-11-04.md)
 
 ## Next action
-Step 2.5 (live, ask Dom first: it drives the game): stamp game version 57.4 in the data files, then read ~10 shop/upgrade prices in game (OCR) and compare with `towers.json`; also check a few ranges/footprints and the hero level cost. Offline alternative: Phase 3.1 shared `ui.json` coords from the fixtures.
+Step 3.2: `tools/calibrate.py mask <map>`. In the Monkey Meadow sandbox, hold a tower and sweep a grid over the map area (x < 0.84), classifying the range-circle tint (red = blocked) → placeable mask per footprint class, land/water. Clear or avoid the towers left at (0.30, 0.88), (0.62, 0.23) and the hero (0.25, 0.165).
 
 ## Open questions
+- MK upgrade discounts (Double Shot, Heart of Oak, Guided/Intense Magic, Maim MOAB, Cluster Bombs) are in `account.json` but their prices aren't checked in game yet
 - FF switched itself on twice in the live run (handoff 017). Did Dom click it? If not, read `button_state` before toggling FF.
 - Tower stats to measure in game: Banana Farm, Skywarden, most Monkey Village tiers (handoff 018)
-- Hero level cost: $1/XP per the wiki; check whether difficulty scales it (handoff 019)
 - `drag()` is untested in the game
 - Stage Manager is on: if window moves cause trouble, consider turning it off for bot runs
 
