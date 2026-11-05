@@ -1,7 +1,10 @@
 """Live check for step 1.5: watch a game and log what state.py / hud.py see. Sends NO input,
 so Dom can play by hand (or a scripted run can drive) while this runs alongside.
 
-    .venv/bin/python scripts/watch_state.py OUT_DIR [--auto-start] [--hz 4]
+    .venv/bin/python scripts/watch_state.py OUT_DIR [--manual-start] [--hz 4]
+
+Auto-start is assumed ON (Dom's setting); pass --manual-start if it's off, otherwise
+round_ended only fires on the idle edges that auto-start never produces.
 
 Every loop: grab -> read_screen + read_hud -> HudFilter -> RoundTracker. Prints a line
 whenever the screen kind, button, panel, round, outcome or round_ended changes, and saves
@@ -32,7 +35,7 @@ def main():
     args = [a for a in argv if not a.startswith("--")]
     out = Path(args[0] if args else "watch_out")
     out.mkdir(parents=True, exist_ok=True)
-    g, hf, rt = Game(), HudFilter(), RoundTracker(auto_start="--auto-start" in sys.argv)
+    g, hf, rt = Game(), HudFilter(), RoundTracker(auto_start="--manual-start" not in argv)
     kinds, buttons, min_hit = Counter(), Counter(), {}
     last_key, n = None, 0
     print(f"watching pid {g.pid}, {hz} Hz, frames -> {out}/ (Ctrl-C to stop)")

@@ -106,16 +106,21 @@ def parse_hud(raw) -> Hud:
 class HudFilter:
     """Smooths per-frame HUD readings over time.
 
-    Each field holds its last accepted value. A different reading replaces it only after
-    `confirm` consecutive identical readings (default 2: one extra read, ~70 ms). A None
-    reading (field unreadable this frame) never overwrites a value; it's counted in
-    `misses` so callers can tell a stale HUD from a live one. The first value ever read
-    is accepted immediately.
+    Each field holds its last accepted value. A different reading replaces it once
+    `confirm` consecutive readings (default 2) agree with each other; the newest one is
+    taken. For lives and round "agree" means equal. Money changes on almost every read
+    during a round (pop income), so two reads rarely match exactly; for money "agree"
+    means within MONEY_TOL of the previous reading (max $20 or 10%). A clipped or
+    dropped digit ($1,357 -> $357) is far off, so it's still held back until it repeats.
 
-    Call `reset()` when a new game starts (round 1 after a restart would otherwise wait
-    for confirmation like any other change).
+    Found live (step 1.5): with exact matching only, money froze for whole rounds.
+
+    A None reading (field unreadable this frame) never overwrites a value; it's counted in
+    `misses` so callers can tell a stale HUD from a live one. The first value ever read
+    is accepted immediately. Call `reset()` when a new game starts.
     """
     FIELDS = ("lives", "money", "round", "rounds_total")
+    MONEY_TOL = (20, 0.10)   # (absolute $, fraction of the previous reading)
 
     def __init__(self, confirm=2):
         self.confirm = confirm
@@ -123,8 +128,13 @@ class HudFilter:
 
     def reset(self):
         self.value = dict.fromkeys(self.FIELDS)
-        self._pending = dict.fromkeys(self.FIELDS)  # (candidate, times seen)
+        self._pending = dict.fromkeys(self.FIELDS)  # (last reading, consecutive agreeing reads)
         self.misses = dict.fromkeys(self.FIELDS, 0)
+
+    def _agree(self, field, a, b):
+        if field != "money":
+            return a == b
+        return abs(a - b) <= max(self.MONEY_TOL[0], self.MONEY_TOL[1] * max(a, b))
 
     def update(self, reading: Hud) -> Hud:
         for f in self.FIELDS:
@@ -136,12 +146,11 @@ class HudFilter:
             if self.value[f] is None or new == self.value[f]:
                 self.value[f], self._pending[f] = new, None
                 continue
-            cand, seen = self._pending[f] or (new, 0)
-            seen = seen + 1 if cand == new else 1
+            last, seen = self._pending[f] or (None, 0)
+            seen = seen + 1 if last is not None and self._agree(f, last, new) else 1
             if seen >= self.confirm:
-                self.value[f], self._pending[f] = new, None
-            else:
-                self._pending[f] = (new, seen)
+                self.value[f] = new   # keep the run going: steadily rising money tracks every read
+            self._pending[f] = (new, seen)
         return self.current
 
     @property

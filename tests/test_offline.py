@@ -132,6 +132,27 @@ def test_hud_filter():
     assert HudFilter(confirm=1).update(Hud(1, 2, 3, 4)) == Hud(1, 2, 3, 4)
 
 
+def test_hud_filter_money_income():
+    """Live bug (step 1.5): money rising every read must not freeze the filter."""
+    f = HudFilter()
+    f.update(Hud(200, 356, 4, 40))
+    seq = [241, 244, 247, 250, 253, 256]          # spent $115, then pop income each read
+    out = [f.update(Hud(200, m, 4, 40)).money for m in seq]
+    assert out == [356, 244, 247, 250, 253, 256]  # one read of lag, then tracks
+    # a dropped digit is still held back, and accepted only if it repeats
+    f = HudFilter()
+    f.update(Hud(money=1357))
+    assert f.update(Hud(money=357)).money == 1357
+    assert f.update(Hud(money=1360)).money == 1357   # disagrees with 357: restart count
+    assert f.update(Hud(money=1362)).money == 1362
+    assert f.update(Hud(money=357)).money == 1362
+    assert f.update(Hud(money=357)).money == 357     # repeated: genuinely spent
+    # lives / round still need exact agreement
+    f = HudFilter()
+    f.update(Hud(lives=200))
+    assert f.update(Hud(lives=199)).lives == 200 and f.update(Hud(lives=198)).lives == 200
+
+
 def test_hud_ocr_live():
     """Mac only: run Vision on the committed crops and parse (skipped elsewhere)."""
     try:
@@ -224,6 +245,24 @@ def test_read_screen():
         assert sc.panel == f.get("sell_side"), stem
 
 
+def test_read_screen_bright_button():
+    """Live (step 1.5): the FF button glowing brighter than any probe class (hover?) is
+    still a game frame, with button None, and the tracker keeps its state."""
+    import numpy as np
+    from bloons.state import RoundTracker, read_screen
+    from bloons.vision import box_px, SPEC
+    _, _, orig = next(r for r in _frames() if r[0] == "hud_r05")
+    img = orig.copy()
+    x0, y0, x1, y1 = box_px(SPEC["templates"]["btn_ff"]["box"], img)
+    btn = img[y0:y1, x0:x1].astype(int)
+    img[y0:y1, x0:x1] = np.clip(btn + (33, 5, 20), 0, 255).astype(np.uint8)   # (76,236,152) -> (109,241,172)
+    sc = read_screen(img)
+    assert sc.kind == "game" and sc.button is None
+    t = RoundTracker(confirm=1)
+    assert t.update(read_screen(orig)).round_active is True
+    assert t.update(sc).round_active is True and t.current.fast_forward is True
+
+
 def _feed(tracker, seq):
     """seq of (kind, button, round) -> list of RoundState."""
     from bloons.hud import Hud
@@ -299,6 +338,7 @@ if __name__ == "__main__":
     test_hud_parse_fixtures()
     test_hud_parse_edge_cases()
     test_hud_filter()
+    test_hud_filter_money_income()
     test_hud_ocr_live()
     test_vision_spec()
     test_vision_templates()
@@ -306,6 +346,7 @@ if __name__ == "__main__":
     test_vision_match_location()
     test_frame_bgr_mac()
     test_read_screen()
+    test_read_screen_bright_button()
     test_round_tracker_manual_start()
     test_round_tracker_auto_start()
     test_round_tracker_outcome()

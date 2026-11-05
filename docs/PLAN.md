@@ -80,7 +80,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 1.2 Capture fixtures: HUD at various values, every popup type, victory, defeat, the upgrade panel → `data/fixtures/`
 - [x] 1.3 HUD OCR: money, lives, round (digit whitelist + sanity filter) + offline tests
 - [x] 1.4 Template library + `match(name)`: start / FF / FF-active buttons, popups, victory/defeat
-- [x] 1.5 Round-state + outcome detection + offline tests *(live check with `scripts/watch_state.py` still to do)*
+- [x] 1.5 Round-state + outcome detection + offline tests (live-checked 2026-11-04: one Easy game, loss at round 30)
 
 ## Phase 2 — Static game data
 - [ ] 2.1 `towers.json`: every tower's base cost, upgrade costs per path/tier, base range + range modifiers, abilities, hotkey, footprint class, land/water — *costs, upgrade names and hotkeys done via `scripts/fetch_wiki_data.py`; range/abilities/footprint/land-water still to add*

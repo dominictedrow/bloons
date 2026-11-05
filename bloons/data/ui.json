@@ -40,6 +40,10 @@
   "play_ff": [
    0.9374,
    0.9398
+  ],
+  "pause_auto_start_toggle": [
+   0.7,
+   0.285
   ]
  },
  "timing_s": {

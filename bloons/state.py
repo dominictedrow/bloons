@@ -30,7 +30,7 @@ OUTCOMES = {"victory": "win", "defeat": "loss"}
 @dataclass(frozen=True)
 class Screen:
     kind: str                       # one of SCREENS' kinds, "game" or "unknown"
-    button: Optional[str] = None    # in game: 'idle' / 'ff_off' / 'ff_on' (vision.button_state)
+    button: Optional[str] = None    # in game: 'idle' / 'ff_off' / 'ff_on', None if unreadable
     panel: Optional[str] = None     # in game: upgrade panel side 'left' / 'right', or None
     scores: dict = field(default_factory=dict, compare=False)   # template -> score, for logs
 
@@ -45,8 +45,10 @@ def read_screen(img, templates: Optional[Templates] = None) -> Screen:
         if all(m[n].found for n in needed):
             return Screen(kind, scores=scores)
     button = t.button_state(img)
-    if button is None:
+    if button is None and not (m["btn_play"].found or m["btn_ff"].found):
         return Screen("unknown", scores=scores)
+    # A button whose shape matches but whose colour fits no class (seen live: a brighter
+    # glow, probably mouse hover) is still a game frame, just with an unknown button state.
     sell = m["sell_button"]
     panel = ("left" if sell.center[0] < 0.5 else "right") if sell.found else None
     return Screen("game", button, panel, scores)
