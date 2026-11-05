@@ -1,11 +1,11 @@
 # START HERE
 
-**Current phase / step:** Phase 2 → step 2.3 (rounds.json). Phase 0, 1, and 2.1, 2.2, 2.4 done.
+**Current phase / step:** Phase 2 → step 2.5 (version stamp + in-game spot check). Phase 0, 1, and 2.1–2.4 done.
 **Status:** BTD6+ accepts synthetic clicks and keys. Every plain hotkey works via PostToPid; modifier combos (Ctrl/Shift) don't. `bloons/platform_mac.py` (`Game`) captures in the background at 2× and reads the HUD with Vision; `bloons/hud.py` parses it (`Game.read_hud()` → `Hud`, smooth with `HudFilter`). `bloons/vision.py` matches templates (`match`, `button_state`) on `Frame.content_bgr()`; `bloons/state.py` gives screen kind + `RoundTracker` (round_active / round_ended / outcome). Never send modifier events; `refocus()` recovers keys. Repo: https://github.com/dominictedrow/bloons (submodule `Bloons bot/` in journey).
-**Last handoff:** [handoffs/019-2026-11-04.md](handoffs/019-2026-11-04.md)
+**Last handoff:** [handoffs/020-2026-11-04.md](handoffs/020-2026-11-04.md)
 
 ## Next action
-Step 2.3: `rounds.json`, Standard rounds 1–140 (bloon types, counts, spacing, properties), from the wiki's `Module:BTD6 rounds` / `Module:BTD6 rounds/new` via `scripts/fetch_wiki_data.py`, with tests.
+Step 2.5 (live, ask Dom first: it drives the game): stamp game version 57.4 in the data files, then read ~10 shop/upgrade prices in game (OCR) and compare with `towers.json`; also check a few ranges/footprints and the hero level cost. Offline alternative: Phase 3.1 shared `ui.json` coords from the fixtures.
 
 ## Open questions
 - FF switched itself on twice in the live run (handoff 017). Did Dom click it? If not, read `button_state` before toggling FF.

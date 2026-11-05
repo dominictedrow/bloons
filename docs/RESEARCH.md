@@ -162,3 +162,10 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - **Level descriptions** come from each hero page's `==Levels==` table, all 18 heroes × 20 levels. Dan D'Monke's table has two columns (his two forms), joined with " | ".
   - **Hero game-model dumps exist for only 6 heroes** (Adora, Geraldo, Gwendolin, Quincy, Sauda, Striker Jones), from versions 46.3–52.2, and they store **only what changes per level** (`_2`…`_20`), so values are carried forward. Ability names in the dumps are sometimes internal (`Ball of Light sub-tower`, `TargetFocus`) and are cleaned. For the other 12 heroes `stats` is null. The prose "Abilities" sections on hero pages are too inconsistent to parse reliably, so the ability bar (5.4) is the source in game.
   - Heroes with dumps have a radius-7 footprint and are land only.
+
+- 2026-11-04 — **Rounds (step 2.3)**, `scripts/fetch_wiki_data.py` → `rounds.json`:
+  - Round data is game JSON on the wiki: `JSON:Bloons TD 6/Rounds/DefaultRoundSet` (Standard: 140 rounds of `bloonGroups` = bloon, count, start, duration in s) and `DefaultIncomeSet` (pop-cash multiplier: ×1 to round 50, ×0.5 to 60, ×0.2 to 85, ×0.1 to 100, ×0.05 to 120, ×0.04 to 140, ×0.02 after). The `JSON` namespace (id 3050) also has every other mode's round set (Alternate, ABR = `AlternateRoundSet`, Rogue, quests…) for later.
+  - Bloon names are a base type + `Regrow` / `Fortified` / `Camo` in that order (47 variants in Standard). DDTs are always camo (`DdtCamo`).
+  - RBE / layers / pop cash use `Module:BTD6 rounds/new`'s arithmetic and `Module:BTD6 rounds/stats` tables: normal stats to round 80, freeplay stats from 81 (ceramics get much tougher), and MOAB-class health growing by a per-round modifier past 80 (cumulative). **Checked against the wiki's own rendered table: duration, RBE, layers, pop cash and end bonus match on all 140 rounds.**
+  - End-of-round cash bonus: **100 + round** (consistent with the live run: +$103 at the end of round 1 included pops).
+  - First appearances in Standard: regrow 17, camo 24, lead 28, MOAB 40, fortified 45. One group starts at −0.15 s (round 86, game data).

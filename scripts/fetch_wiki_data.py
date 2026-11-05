@@ -8,6 +8,10 @@ Module:BTD6 stats/<Tower>/new (JSON despite the module namespace), which cover t
 tower and the 15 single-path tiers. Towers without a dump get "stats": null or what the
 Stats:<Tower> (BTD6) page has (see MISSING_STATS). Distances are in game units.
 
+rounds.json (Standard, rounds 1-140) comes from JSON:Bloons TD 6/Rounds/DefaultRoundSet and
+DefaultIncomeSet, with RBE / layers / pop cash computed exactly like the wiki's
+Module:BTD6 rounds/new (tables from Module:BTD6 rounds/stats).
+
 Re-run after a game update. game_version stays null until checked in game (PLAN step 2.5).
 """
 import datetime
@@ -158,6 +162,84 @@ def round_half_up(x):
     return int(x + 0.5)   # the wiki module's RoundHalfUp (values are positive)
 
 
+# --- rounds ---------------------------------------------------------------------------------
+BLOON_TYPES = ("Red", "Blue", "Green", "Yellow", "Pink", "Black", "White", "Purple", "Zebra", "Lead",
+               "Rainbow", "Ceramic", "Moab", "Bfb", "Zomg", "Ddt", "Bad")
+MOAB_CLASS = {"moab", "bfb", "zomg", "ddt", "bad"}
+FIRST_FREEPLAY_ROUND = 81   # Template:BTD6 rounds/new default
+
+
+def parse_bloon(name):
+    """'CeramicRegrowFortifiedCamo' -> {'type': 'ceramic', 'camo': True, 'regrow': True, 'fortified': True}."""
+    base = next((b for b in BLOON_TYPES if name.startswith(b)), None)
+    rest = name[len(base):] if base else ""
+    if base is None or re.sub(r"Regrow|Fortified|Camo", "", rest):
+        raise RuntimeError(f"unknown bloon name {name}")
+    return {"type": base.lower(), "camo": "Camo" in rest, "regrow": "Regrow" in rest, "fortified": "Fortified" in rest}
+
+
+def lua_number_tables(src):
+    """{'name': {'Key': number}} for every 'name = { Key = 1, ... }' table of plain numbers in src."""
+    out = {}
+    for m in re.finditer(r"(\w+)\s*=\s*\{([^{}]*)\}", src):
+        pairs = re.findall(r"(\w+)\s*=\s*(-?[\d.]+)", m.group(2))
+        if pairs:
+            out[m.group(1)] = {k: float(v) for k, v in pairs}
+        else:
+            nums = re.findall(r"-?[\d.]+", re.sub(r"--[^\n]*", "", m.group(2)))
+            if nums:
+                out[m.group(1)] = [float(x) for x in nums]
+    return out
+
+
+def round_stats_tables(stats_src):
+    """(normal, freeplay, shared) number tables from Module:BTD6 rounds/stats."""
+    i, j = stats_src.index("normalStats"), stats_src.index("freeplayStats")
+    k = stats_src.index("moabLayerRbe")
+    return lua_number_tables(stats_src[i:j]), lua_number_tables(stats_src[j:k]), lua_number_tables(stats_src[k:])
+
+
+def build_rounds(roundset, incomeset, stats_src):
+    """Same arithmetic as Module:BTD6 rounds/new List() with its default arguments."""
+    normal, freeplay, shared = round_stats_tables(stats_src)
+    thresholds = [(t["threshold"], t["multiplier"]) for t in incomeset["thresholds"]["items"]]
+    scale = roundset.get("scale", 1)
+    rounds, moab_sum, mi, ii = [], 1.0, 0, 0
+    mod_thr, mod = shared["moabHealthModifiersThresholds"], shared["moabHealthModifiers"]
+    for n, rd in enumerate(roundset["rounds"], start=1):
+        tbl = freeplay if n >= FIRST_FREEPLAY_ROUND else normal
+        if ii < len(thresholds) and n > thresholds[ii][0]:
+            ii += 1
+        income = thresholds[ii][1] if ii < len(thresholds) else incomeset["finalMultiplier"]
+        if mi < len(mod_thr) and n > mod_thr[mi]:
+            mi += 1
+        moab_sum += mod[mi]
+        groups, rbe, layers, cash, duration, counts = [], 0.0, 0.0, 0.0, 0.0, {}
+        for g in rd["bloonGroups"]:
+            b, c = g["bloon"], g["count"]
+            if b in shared["moabLayerRbe"]:
+                g_rbe = (shared["moabLayerRbe"][b] * moab_sum + tbl["moabCeramicLayerRbe"][b] + tbl["moabChildrenRbe"][b]) * c
+            elif b in tbl["ceramicLayerRbe"]:
+                g_rbe = (tbl["ceramicLayerRbe"][b] + tbl["ceramicChildrenRbe"][b]) * c
+            else:
+                g_rbe = tbl["bloonRbe"][b] * c
+            rbe += g_rbe
+            layers += tbl["bloonLayers"][b] * c
+            cash += tbl["bloonValue"][b] * c * income
+            end = (g["start"] + g["duration"]) * scale
+            duration = max(duration, end)
+            info = parse_bloon(b)
+            counts[info["type"]] = counts.get(info["type"], 0) + c
+            groups.append({"bloon": b, **info, "count": c, "start": round(g["start"] * scale, 4), "end": round(end, 4)})
+        rounds.append({"round": n, "groups": groups, "duration": round(duration, 4), "counts": counts,
+                       "rbe": round(rbe), "layers": round(layers), "pop_cash": round(cash, 2),
+                       "end_bonus": 100 + n, "income_multiplier": income,
+                       "has": {"camo": any(g["camo"] for g in groups), "regrow": any(g["regrow"] for g in groups),
+                               "fortified": any(g["fortified"] for g in groups),
+                               "lead": "lead" in counts, "moab_class": bool(MOAB_CLASS & set(counts))}})
+    return rounds
+
+
 def slug(name):
     return name.lower().replace(" ", "_").replace("'", "")
 
@@ -226,10 +308,31 @@ def main():
                                  "(Module:BTD6 hero xp), before map-difficulty multipliers.",
                  "stats": "only for heroes with a wiki dump: placement, footprint, targeting, range_by_level, "
                           "abilities (unlock level, cooldown by level). null = read the ability bar in game."}
+    rs_src = page_text(["JSON:Bloons TD 6/Rounds/DefaultRoundSet", "JSON:Bloons TD 6/Rounds/DefaultIncomeSet",
+                        "Module:BTD6 rounds/stats"])
+    roundset = json.loads(rs_src["JSON:Bloons TD 6/Rounds/DefaultRoundSet"])
+    incomeset = json.loads(rs_src["JSON:Bloons TD 6/Rounds/DefaultIncomeSet"])
+    rounds = build_rounds(roundset, incomeset, rs_src["Module:BTD6 rounds/stats"])
+    rounds_meta = {
+        "source": "bloonswiki.com JSON:Bloons TD 6/Rounds/DefaultRoundSet + DefaultIncomeSet; RBE/layers/cash as in "
+                  "Module:BTD6 rounds/new with Module:BTD6 rounds/stats",
+        "fetched": meta["fetched"], "game_version": None, "mode": "Standard (Easy ends at 40, Medium 60, Hard 80, "
+                                                                   "Impoppable 100; rounds past the end are freeplay)",
+        "first_freeplay_round": FIRST_FREEPLAY_ROUND,
+        "times": "seconds at normal speed from round start; group bloons spawn evenly from start to end",
+        "rbe": "base red-bloon equivalent (no difficulty or Monkey Knowledge health changes); MOAB health grows "
+               "each round past 80",
+        "pop_cash": "cash from popping everything, x income_multiplier (falls after round 50)",
+        "end_bonus": "end-of-round cash: 100 + round",
+        "income_thresholds": [[t["threshold"], t["multiplier"]] for t in incomeset["thresholds"]["items"]]
+                             + [["after", incomeset["finalMultiplier"]]],
+    }
     OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "rounds.json").write_text(json.dumps({"_meta": rounds_meta, "rounds": rounds}, indent=1) + "\n",
+                                     encoding="utf-8")
     for fname, body in (("towers.json", {"_meta": meta, "towers": towers}), ("heroes.json", {"_meta": hero_meta, "heroes": heroes})):
         (OUT / fname).write_text(json.dumps(body, indent=1) + "\n", encoding="utf-8")
-    print(f"{len(towers)} towers, {len(heroes)} heroes -> {OUT}")
+    print(f"{len(towers)} towers, {len(heroes)} heroes, {len(rounds)} rounds -> {OUT}")
 
 
 if __name__ == "__main__":

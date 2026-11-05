@@ -419,6 +419,29 @@ def test_hero_rules():
     assert hero_abilities(h["benjamin"], 10) is None and hero_range(h["benjamin"], 1) is None
 
 
+def test_rounds_data():
+    """rounds.json: RBE / cash / duration were checked against the wiki's own rendered table
+    for all 140 rounds when generated (2026-11-04); these pin a few of those values."""
+    import json
+    r = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/rounds.json").read_text())["rounds"]
+    assert [x["round"] for x in r] == list(range(1, 141))
+    for x in r:
+        assert x["groups"] and x["duration"] > 0 and x["rbe"] > 0, x["round"]
+        assert sum(x["counts"].values()) == sum(g["count"] for g in x["groups"]), x["round"]
+        # game data has a few slightly negative starts (round 86: -0.15 s)
+        assert all(-1 < g["start"] <= g["end"] <= x["duration"] + 1e-6 for g in x["groups"]), x["round"]
+        assert x["end_bonus"] == 100 + x["round"]
+    assert (r[0]["rbe"], r[0]["pop_cash"], r[0]["counts"]) == (20, 20, {"red": 20})
+    assert r[39]["counts"] == {"moab": 1} and r[39]["rbe"] == 616
+    assert r[79]["counts"] == {"zomg": 1} and r[62]["rbe"] == 14413
+    assert sum(x["rbe"] for x in r[:40]) == 12289                   # wiki's running total at 40
+    first = {f: next(x["round"] for x in r if x["has"][f]) for f in ("regrow", "camo", "lead", "moab_class")}
+    assert first == {"regrow": 17, "camo": 24, "lead": 28, "moab_class": 40}
+    assert r[49]["income_multiplier"] == 1 and r[50]["income_multiplier"] == 0.5
+    ddt = [g for x in r for g in x["groups"] if g["type"] == "ddt"]
+    assert ddt and all(g["camo"] for g in ddt)                     # DDTs are always camo
+
+
 if __name__ == "__main__":
     test_fixture_crops()
     test_coords()
@@ -431,6 +454,7 @@ if __name__ == "__main__":
     test_tower_abilities_and_shape()
     test_hero_data()
     test_hero_rules()
+    test_rounds_data()
     test_hud_parse_fixtures()
     test_hud_parse_edge_cases()
     test_hud_filter()
