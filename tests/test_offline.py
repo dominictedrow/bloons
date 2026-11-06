@@ -1738,3 +1738,121 @@ def test_harness_observe_bloons(tmp_path):
     assert len(h.observe().bloons) == 2
     seq[:] = [Screen("pause")]
     assert h.observe().bloons is None                        # off the game screen
+
+
+# --- upgrade panel check (PLAN 5.3) ---------------------------------------------------------
+def _panel_fixtures():
+    import json
+    return json.loads((FIX / "panel" / "panel.json").read_text())["frames"]
+
+
+def _panel_ocr(side, texts):
+    """A fake `ocr(box)` answering the path_prices boxes with the live OCR text."""
+    from bloons.ui import panel
+    boxes = panel(side)["path_prices"]
+    return lambda box: texts.get(str(boxes.index(box)), "") if box in boxes else ""
+
+
+def test_panel_parse_price():
+    from bloons.panel import parse_price
+    assert parse_price("$1,530") == 1530 and parse_price("$85") == 85 and parse_price("$12,750") == 12750
+    assert parse_price("") is None and parse_price("MAX UPGRADES") is None
+
+
+def test_panel_read_fixtures():
+    """Live Dart Monkey panels (Sandbox 0-0-0 .. 5-2-0, a second dart at 4-0-0 with tier 5
+    taken, a Standard frame with Sharp Shots unaffordable, a left-side panel): state from the
+    button colour, price from the (recorded) OCR, tier from the pips."""
+    import cv2
+    from bloons.panel import read_paths
+    for stem, fx in _panel_fixtures().items():
+        img = cv2.imread(str(FIX / "panel" / f"{stem}.jpg"))
+        rows = read_paths(img, fx["side"], _panel_ocr(fx["side"], fx["ocr"]))
+        assert [[r.state, r.price, r.tier] for r in rows.values()] == fx["truth"], stem
+
+
+def test_panel_compare_with_guards():
+    """Every Sandbox frame agrees with the price table + guards at the tiers the harness
+    recorded; a wrong registry (tiers or price table) shows up as a disagreement."""
+    import cv2
+    from bloons.harness import BloonsHarness
+    from bloons.panel import compare, read_paths
+    h = BloonsHarness(FakeGame(), "monkey_meadow", sleep=lambda s: None)
+    h.hud.update(FakeGame().hud)
+    fx = _panel_fixtures()
+    first = h.register("dart_monkey", (0.1, 0.8), 170)
+    for stem in [s for s in fx if s.startswith("dart_")]:
+        h.registry[first].tiers = tuple(int(c) for c in stem.split("_")[1])
+        img = cv2.imread(str(FIX / "panel" / f"{stem}.jpg"))
+        rows = read_paths(img, "right", _panel_ocr("right", fx[stem]["ocr"]))
+        assert compare(h.registry[first], rows, h.guard_state()) == {}, stem
+    # the second dart: path 1 at tier 4 shows MAX UPGRADES because the first one has tier 5
+    second = h.register("dart_monkey", (0.22, 0.85), 170)
+    h.registry[second].tiers = (4, 0, 0)
+    img = cv2.imread(str(FIX / "panel" / "dart2_400_right.jpg"))
+    rows = read_paths(img, "right", _panel_ocr("right", fx["dart2_400_right"]["ocr"]))
+    assert compare(h.registry[second], rows, h.guard_state()) == {}
+    h.registry[first].tiers = (4, 2, 0)                     # no tier 5 any more: path 1 should be open
+    assert compare(h.registry[second], rows, h.guard_state()) == {0: ["state max != open"]}
+    h.registry[first].tiers = (5, 2, 0)
+    h.registry[second].tiers = (4, 1, 0)                    # a registry with the wrong tiers
+    assert compare(h.registry[second], rows, h.guard_state()) == {
+        1: ["price 85 != 160", "tier 0 != 1"], 2: ["state buy != closed"]}
+    # Standard frame, $119: the unaffordable row still counts as open at the right price
+    img = cv2.imread(str(FIX / "panel" / "std_000_poor_right.jpg"))
+    rows = read_paths(img, "right", _panel_ocr("right", fx["std_000_poor_right"]["ocr"]))
+    h.registry[first].tiers = (0, 0, 0)
+    assert compare(h.registry[first], rows, h.guard_state()) == {}
+
+
+def test_harness_check_upgrades_and_upgrade_reads_panel(tmp_path):
+    from bloons import guards
+    from bloons.harness import BloonsHarness
+    from bloons.hud import Hud
+    from bloons.panel import PathRow
+    g = FakeGame()
+    g.hud = Hud(200, 5000, 1, 40)
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    h.refresh_hud()
+    h.read_panel = lambda frame: "right"
+    tid = h.register("dart_monkey", (0.2, 0.5), 170)
+    t = h.registry[tid]
+    price = guards.upgrade_cost(t, 0, h.guard_state())
+    rows = {0: PathRow("buy", price, 0), 1: PathRow("buy", 85, 0), 2: PathRow("buy", 75, 0)}
+    h.read_paths = lambda side, paths=(0, 1, 2), prices=True: {p: rows[p] for p in paths}
+    assert h.observe().upgrade_options[tid][0].checked is None
+    r = h.check_upgrades(tid)
+    assert r and r.reason == "match" and r.value[1] == {}
+    assert g.calls[-1] == ("click", *[round(v, 4) for v in __import__("bloons.ui", fromlist=["panel"]).panel("right")["close"]])
+    assert [o.checked for o in h.observe().upgrade_options[tid]] == [True, True, True]
+    rows[1] = PathRow("buy", 90, 0)
+    r = h.check_upgrades(tid)
+    assert not r and r.reason == "mismatch" and r.value[1] == {1: ["price 90 != 85"]}
+    assert [o.checked for o in h.observe().upgrade_options[tid]] == [True, False, True]
+    # upgrade(): the panel's price is what gets confirmed and recorded
+    rows[0] = PathRow("buy", price + 5, 0)
+    g.on_key = lambda game, k: k == "," and setattr(game, "hud", Hud(200, game.hud.money - price - 5, 1, 40))
+    r = h.upgrade(tid, 0)
+    assert r and r.cost == price + 5 and t.spent == 170 + price + 5 and t.tiers == (1, 0, 0)
+    assert h.price_mismatches == [("dart_monkey", (0, 0, 0), 0, price + 5, price)]
+    assert h.observe().upgrade_options[tid][0].checked is None      # new tiers: not read yet
+    # a locked / unaffordable row isn't pressed
+    g.on_key = None
+    rows[1] = PathRow("closed", None, 0)
+    n = len(g.calls)
+    r = h.upgrade(tid, 1)
+    assert not r and r.reason == "panel_locked" and ("key", ".") not in g.calls[n:]
+    rows[1] = PathRow("poor", 85, 0)
+    assert h.upgrade(tid, 1).reason == "panel_no_money"
+    # an unreadable panel (overlay, black frame) is ignored: the guard's price is used
+    rows[1] = PathRow("unknown", None, 0)
+    assert h.upgrade(tid, 1).reason == "unconfirmed"                # FakeGame money didn't move
+    assert h.check_upgrades(99).reason == "no_tower"
+    # the HUD missed the money drop, but the row's pips went up after the press: confirmed
+    rows[1] = PathRow("buy", 85, 0)
+    g.on_key = lambda game, k: k == "." and rows.__setitem__(1, PathRow("buy", 160, 1))
+    r = h.upgrade(tid, 1)
+    assert r and r.cost == 85 and t.tiers == (1, 1, 0)
+    rows[1] = PathRow("buy", 160, 1)
+    g.on_key = None                                                # nothing changes: still unconfirmed
+    assert h.upgrade(tid, 1).reason == "unconfirmed" and t.tiers == (1, 1, 0)

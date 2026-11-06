@@ -21,7 +21,7 @@ import json
 import time
 from pathlib import Path
 
-from . import guards, ui
+from . import guards, panel, ui
 from .hud import HudFilter
 from .placement import (PathKeepout, PlaceContext, Placed, SpotMemory, can_place, load_masks, mask_classes,
                         record_placement, shape_of, tint_at, unit_norm)
@@ -110,6 +110,7 @@ class BloonsHarness:
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
         self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
+        self.read_paths = self._read_paths          # (side, paths, prices) -> {path: panel.PathRow}
         self.read_map_names = self._ocr_map_names   # map select page -> 6 thumbnail names
         self.pick_trace = []                        # last _pick_map reads / flips / clicks
         self.prompt_actions = {k: v for k, v in self.ui["prompts"].items()
@@ -154,6 +155,8 @@ class BloonsHarness:
         self.hud.reset()
         self.tracker.reset()
         self._masks_cache = None      # (placed key, {class: Mask}) for observe()
+        self.panel_checks = {}        # tid -> (tiers, {path: agreed?}) from the last panel reads
+        self.price_mismatches = []    # (kind, tiers, path, panel price, table price) seen buying
         self.rounds_done = 0          # rounds finished this game, counted by observe() (the HUD
                                       # number is ambiguous between rounds; RESEARCH step 2.x)
 
@@ -439,7 +442,8 @@ class BloonsHarness:
 
     def _panel_buy(self, tid, guard, press):
         """Select `tid`, find its panel, run `press(side)`, confirm the money drop on the HUD,
-        close the panel. -> ActionResult (ok = paid)."""
+        close the panel. -> ActionResult (ok = paid). If `press` returns a cost (the price the
+        panel showed), that's the amount confirmed instead of the guard's."""
         before = self._hud_money()
         r = self.select_tower(tid)
         if not r:
@@ -451,8 +455,10 @@ class BloonsHarness:
         self.close_panel(side)          # first: a panel on the left covers the HUD money
         if not r:
             return r
-        ok = self._money_moved(before, -guard.cost)
-        return ActionResult(ok, "bought" if ok else "unconfirmed", guard.cost)
+        cost = guard.cost if r.cost is None else r.cost
+        # the HUD can miss the drop; a press whose result says the panel saw it ("pips") counts
+        ok = self._money_moved(before, -cost) or r.value == "pips"
+        return ActionResult(ok, "bought" if ok else "unconfirmed", cost)
 
     def upgrade(self, tid, path):
         """Buy the next tier on `path` (0-2) for tower `tid`: guard (crosspath, tier <= 5, one
@@ -461,12 +467,79 @@ class BloonsHarness:
         g = guards.can_upgrade(tid, path, self.guard_state())
         if not g:
             return g
-        r = self._panel_buy(tid, g, lambda side: self.press(
-            "upgrade", xy=tuple(ui.panel(side)["path_buttons"][path]), path=path))
+
+        def buy(side):
+            # 5.3: read the row first. The panel's word beats the registry's: a locked or
+            # unaffordable row isn't pressed, and a different price is the one confirmed.
+            row = self.read_paths(side, (path,)).get(path)
+            cost = None
+            if row is not None and row.state != "unknown":
+                self._note_check(tid, {path: row})
+                if row.state in ("max", "closed"):
+                    return ActionResult(False, "panel_locked", g.cost, row)
+                if row.state == "poor":
+                    return ActionResult(False, "panel_no_money", g.cost, row)
+                if row.price is not None and row.price != g.cost:
+                    t = self.registry[tid]
+                    self.price_mismatches.append((t.kind, t.tiers, path, row.price, g.cost))
+                    cost = row.price
+            r = self.press("upgrade", xy=tuple(ui.panel(side)["path_buttons"][path]), path=path)
+            if not r:
+                return r
+            seen = None                     # the tier pips going up confirm it without the HUD
+            if row is not None and row.state != "unknown":
+                for _ in range(3):
+                    after = self.read_paths(side, (path,), prices=False).get(path)
+                    if after is not None and after.tier == row.tier + 1:
+                        seen = "pips"
+                        break
+                    self.sleep(0.15)
+            return ActionResult(True, r.reason, cost, seen)
+
+        r = self._panel_buy(tid, g, buy)
         if not r:
             return r
-        self.record_upgrade(tid, path, g.cost)
-        return ActionResult(True, "upgraded", g.cost, self.registry[tid].tiers)
+        self.record_upgrade(tid, path, r.cost)
+        return ActionResult(True, "upgraded", r.cost, self.registry[tid].tiers)
+
+    # --- 5.3 panel check ----------------------------------------------------------------------
+    def _read_paths(self, side, paths=(0, 1, 2), prices=True):
+        f = self.game.grab()
+        if f is None:
+            return {}
+        return panel.read_paths(f.content_bgr(), side, (lambda box: self.game.ocr(f, box)) if prices else None, paths)
+
+    def _note_check(self, tid, rows):
+        """Compare panel rows of `tid` with the guards and remember per path whether they
+        agreed (at the tower's current tiers). -> {path: [disagreements]}."""
+        t = self.registry[tid]
+        bad = panel.compare(t, rows, self.guard_state())
+        tiers, seen = self.panel_checks.get(tid, (None, {}))
+        if tiers != t.tiers:
+            seen = {}
+        seen.update({p: p not in bad for p, row in rows.items() if row.state != "unknown"})
+        self.panel_checks[tid] = (t.tiers, seen)
+        return bad
+
+    def check_upgrades(self, tid):
+        """Open `tid`'s panel, read the 3 path rows (state, OCR'd price, tier pips), close it
+        and compare with the price table + guards (panel.compare). ok -> everything readable
+        agreed ('match'); else 'mismatch' / 'unreadable' / a selection failure. value is
+        (rows, {path: [disagreements]}). observe() shows the result as UpgradeOption.checked."""
+        if tid not in self.registry:
+            return ActionResult(False, "no_tower")
+        r = self.select_tower(tid)
+        if not r:
+            return r
+        side = self.panel_side()
+        if side is None:
+            return ActionResult(False, "no_panel")
+        rows = self.read_paths(side)
+        self.close_panel(side)
+        bad = self._note_check(tid, rows)
+        if all(row.state == "unknown" for row in rows.values()):
+            return ActionResult(False, "unreadable", None, (rows, bad))
+        return ActionResult(not bad, "mismatch" if bad else "match", None, (rows, bad))
 
     def buy_hero_level(self):
         """Buy the hero's next level with the panel's level-up button. ok -> value is the new
@@ -1128,7 +1201,7 @@ class BloonsHarness:
         """One GameState from one frame: screen kind and play button (state.read_screen), the
         HUD (in game only; filtered), round state (state.RoundTracker: round_ended fires once
         per finished round, outcome needs 2 frames), plus the registry, hero, upgrade options
-        (price table), ability estimates, path and placeable masks. Also syncs
+        (price table; `checked` from the last panel read, 5.3), ability estimates, path and placeable masks. Also syncs
         `round_active` from the play button and counts `rounds_done` (the HUD round reads the
         same before and after a round with auto-start off, so it's only trusted mid-round).
         Set the Auto Start setting with set_auto_start first (else the tracker assumes off).
@@ -1164,7 +1237,8 @@ class BloonsHarness:
                 r = guards.can_upgrade(t.tid, path, gs)
                 locked = r.reason if r.reason in ("max_tier", "crosspath", "tier5_taken") else None
                 cost = None if r.reason == "max_tier" else guards.upgrade_cost(t, path, gs)
-                opts.append(UpgradeOption(cost, bool(r), locked))
+                tiers, seen = self.panel_checks.get(t.tid, (None, {}))
+                opts.append(UpgradeOption(cost, bool(r), locked, seen.get(path) if tiers == t.tiers else None))
             options[t.tid] = opts
         hero = None
         if self.hero is not None:

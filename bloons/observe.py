@@ -4,8 +4,9 @@
 plus what the harness knows (registry, hero, ability estimates) and the map data (path,
 placeable masks). Fields that later steps fill are None until then:
   ability cooldown_frac from pixels (5.4; until then from the harness's
-  estimate), measured ranges (5.5). upgrade_options come from the price table (5.3 adds the
-  panel OCR check). to_vector / grid image are 5.6.
+  estimate), measured ranges (5.5). upgrade_options come from the price table, with
+  `checked` from the last panel read (5.3: harness.check_upgrades, and every upgrade()).
+  to_vector / grid image are 5.6.
 """
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -46,6 +47,7 @@ class UpgradeOption:
     cost: Optional[int]             # None when there's no next tier
     affordable: bool
     locked: Optional[str]           # None if allowed (money aside), else 'max_tier' / 'crosspath' / 'tier5_taken'
+    checked: Optional[bool] = None  # the panel agreed (True) / disagreed (False) at these tiers; None = not read
 
 
 @dataclass(frozen=True)

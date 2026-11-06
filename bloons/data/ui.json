@@ -129,7 +129,7 @@
   ]
  },
  "upgrade_panel": {
-  "_notes": "The panel opens on the side opposite the selected tower; find the side with the sell_button template. Left = right shifted by -dx in x (sell_button centres 0.7959 vs 0.1823). ability_icon is the big icon shown next to the panel when the selection has an activated ability (not a dx shift). Towers without targeting (e.g. Tack) show no targeting label. Hero panel: the path rows are replaced by hero_level / hero_level_up / hero_level_price; sell is the same.",
+  "_notes": "The panel opens on the side opposite the selected tower; find the side with the sell_button template. Left = right shifted by -dx in x (sell_button centres 0.7959 vs 0.1823). ability_icon is the big icon shown next to the panel when the selection has an activated ability (not a dx shift). Towers without targeting (e.g. Tack) show no targeting label. Hero panel: the path rows are replaced by hero_level / hero_level_up / hero_level_price; sell is the same. Path rows (5.3): path_button_box is the inside of each path's buy button (green = can buy, grey-blue = too expensive or MAX UPGRADES, neither = the row reads PATH CLOSED); path_pips is tier 1's pip centre per path, tier t sits pip_dy * (t-1) above it (filled pips are saturated yellow-green). Measured on Dart Monkey frames in Sandbox, 2026-11-05.",
   "dx": 0.6136,
   "right": {
    "panel": [
@@ -275,6 +275,40 @@
    "ability_icon": [
     0.614,
     0.182
+   ],
+   "path_button_box": [
+    [
+     0.765,
+     0.4,
+     0.83,
+     0.51
+    ],
+    [
+     0.765,
+     0.538,
+     0.83,
+     0.648
+    ],
+    [
+     0.765,
+     0.676,
+     0.83,
+     0.786
+    ]
+   ],
+   "path_pips": [
+    [
+     0.6592,
+     0.4968
+    ],
+    [
+     0.6592,
+     0.6348
+    ],
+    [
+     0.6592,
+     0.7728
+    ]
    ]
   },
   "left": {
@@ -421,8 +455,43 @@
    "ability_icon": [
     0.259,
     0.182
+   ],
+   "path_button_box": [
+    [
+     0.1514,
+     0.4,
+     0.2164,
+     0.51
+    ],
+    [
+     0.1514,
+     0.538,
+     0.2164,
+     0.648
+    ],
+    [
+     0.1514,
+     0.676,
+     0.2164,
+     0.786
+    ]
+   ],
+   "path_pips": [
+    [
+     0.0456,
+     0.4968
+    ],
+    [
+     0.0456,
+     0.6348
+    ],
+    [
+     0.0456,
+     0.7728
+    ]
    ]
-  }
+  },
+  "pip_dy": -0.0228
  },
  "ability_bar": {
   "_notes": "Bottom-left, one icon per activated ability, left to right; the bottom of each icon is cut off by the screen edge. chevron collapses/expands the bar. With the panel open on the left the whole bar moves right by panel_left_dx. Ready = full-colour icon; after use a full orange ring appears over a darkened icon and shrinks as the cooldown runs (2026-11-05). icon_half: crop half-size around a slot point (bottom clipped at the screen edge); used_min_diff: mean |diff| of that crop that counts as 'the ability fired' (~32 seen vs ~5 frame noise). Key '1' confirmed for slot 0; others see hotkeys.ability.",
