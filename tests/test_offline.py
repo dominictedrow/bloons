@@ -1209,8 +1209,8 @@ def test_harness_start_round_sandbox(tmp_path):
     r = h.start_round()
     assert r and r.reason == "sent" and st["side"] == "shop" and h.shop_layout is None
     assert g.calls == [("click", *powers), ("click", *send), ("click", *powers)]
-    # Sandbox can re-send: round_active isn't tracked there
-    assert not h.round_active
+    # Sandbox: a send marks the round active for good (round-only abilities), and can repeat
+    assert h.round_active
     # already on the bloon panel: no toggle before sending
     g.calls.clear()
     st["side"] = "bloons"
@@ -1253,3 +1253,88 @@ def test_harness_set_auto_start(tmp_path):
     # the menu doesn't open
     st["kind"], g.on_click = "game", None
     assert h.set_auto_start(False).reason == "no_pause_menu"
+
+
+# --- abilities (PLAN 4.5) -------------------------------------------------------------------
+def test_hero_abilities_data():
+    import json
+    from pathlib import Path
+    d = Path(__file__).resolve().parents[1] / "bloons/data"
+    ha = json.loads((d / "hero_abilities.json").read_text())
+    heroes = json.loads((d / "heroes.json").read_text())["heroes"]
+    assert set(ha["heroes"]) == set(heroes) and ha["_meta"]["game_version"]
+    for k, rows in ha["heroes"].items():
+        for a in rows or []:
+            assert 1 <= a["level"] <= 20 and a["name"], k
+            assert a["name"].split()[0] in heroes[k]["levels"][a["level"] - 1], (k, a["name"])
+
+
+def test_harness_ability_slots(tmp_path):
+    from bloons.harness import BloonsHarness, HERO_TID
+    g = FakeGame()
+    now = [0.0]
+    h = BloonsHarness(g, "monkey_meadow", hero="quincy", sleep=lambda s: None,
+                      spots_path=tmp_path / "s.json", mode="sandbox")
+    h.clock = lambda: now[0]
+    a, b = h.register("boomerang_monkey", (0.3, 0.3), 220), h.register("boomerang_monkey", (0.5, 0.2), 220)
+    for t in (a, b):
+        for _ in range(4):
+            h.record_upgrade(t, 1, 0)
+    # two Turbo Charges share one bar slot; new abilities start on cooldown
+    assert [(x.slot, x.name, x.ready) for x in h.abilities] == [(0, "Turbo Charge", False)]
+    assert h.use_ability(0).reason == "cooldown"
+    now[0] = 50.0
+    assert h.use_ability(0).reason == "round_only"      # Turbo Charge isn't usable between rounds
+    h.round_active = True
+    h.icon_diff = lambda x, y: 30.0                      # the icon changes: it fired
+    r = h.use_ability(0)
+    assert r and r.value == "Turbo Charge" and g.calls[-1] == ("key", "1")
+    assert h.abilities[0].ready                          # the second instance is still ready
+    assert h.use_ability(0) and not h.abilities[0].ready
+    now[0] = 96.0
+    assert h.abilities[0].ready
+    # no change on the icon: unconfirmed, and both instances back off 3 s
+    h.icon_diff = lambda x, y: 2.0
+    assert h.use_ability(0).reason == "unconfirmed" and not h.abilities[0].ready
+    now[0] = 99.5
+    assert h.abilities[0].ready
+    # tier 5 on the same path replaces that tower's Turbo Charge with Perma Charge (new slot)
+    h.record_upgrade(a, 1, 0)
+    assert [(x.name, x.tid) for x in h.abilities] == [("Turbo Charge", b), ("Perma Charge", a)]
+    # selling drops the instance; an empty slot disappears and the next one moves up
+    h.unregister(b)
+    assert [x.name for x in h.abilities] == ["Perma Charge"]
+    # hero abilities arrive with levels (Quincy: Rapid Shot at 3); slot 1 has no confirmed key
+    h.register_hero((0.6, 0.6), 540)
+    for lv in (2, 3):
+        h.hero.level = lv - 1
+        h._gain_hero_abilities(lv)
+    assert [x.name for x in h.abilities] == ["Perma Charge", "Rapid Shot"] and h.abilities[1].tid == HERO_TID
+    now[0] = 1000.0
+    h.icon_diff = lambda x, y: 30.0
+    from bloons.ui import ability_slot
+    assert h.place_ability_target(1, 0.4, 0.4)
+    assert g.calls[-2:] == [("click", *[round(v, 4) for v in ability_slot(1)]), ("click", 0.4, 0.4)]
+    assert h.use_ability(5).reason == "no_ability"
+
+
+def test_harness_use_ability_of(tmp_path):
+    from bloons.harness import BloonsHarness
+    from bloons.ui import panel
+    g = FakeGame()
+    now = [0.0]
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    h.clock = lambda: now[0]
+    h.read_panel = lambda frame: "left"
+    h.icon_diff = lambda x, y: 30.0
+    a = h.register("boomerang_monkey", (0.7, 0.3), 220)
+    assert h.use_ability_of(a).reason == "no_ability" and h.use_ability_of(42).reason == "no_tower"
+    for _ in range(4):
+        h.record_upgrade(a, 1, 0)
+    now[0], h.round_active = 100.0, True
+    r = h.use_ability_of(a)
+    assert r and r.value == "Turbo Charge"
+    left = panel("left")
+    assert g.calls[-3:] == [("click", 0.7, 0.3), ("click", *[round(v, 4) for v in left["ability_icon"]]),
+                            ("click", *[round(v, 4) for v in left["close"]])]
+    assert h.use_ability_of(a).reason == "cooldown"

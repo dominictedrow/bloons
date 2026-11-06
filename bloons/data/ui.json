@@ -423,7 +423,7 @@
   }
  },
  "ability_bar": {
-  "_notes": "Bottom-left, one icon per activated ability, left to right; the bottom of each icon is cut off by the screen edge. chevron collapses/expands the bar. With the panel open on the left the whole bar moves right by panel_left_dx. Hotkeys 1-0,-,= untested.",
+  "_notes": "Bottom-left, one icon per activated ability, left to right; the bottom of each icon is cut off by the screen edge. chevron collapses/expands the bar. With the panel open on the left the whole bar moves right by panel_left_dx. Ready = full-colour icon; after use a full orange ring appears over a darkened icon and shrinks as the cooldown runs (2026-11-05). icon_half: crop half-size around a slot point (bottom clipped at the screen edge); used_min_diff: mean |diff| of that crop that counts as 'the ability fired' (~32 seen vs ~5 frame noise). Key '1' confirmed for slot 0; others see hotkeys.ability.",
   "chevron": [
    0.059,
    0.957
@@ -433,7 +433,12 @@
    0.955
   ],
   "slot_pitch": 0.05,
-  "panel_left_dx": 0.209
+  "panel_left_dx": 0.209,
+  "icon_half": [
+   0.025,
+   0.05
+  ],
+  "used_min_diff": 12
  },
  "pause": {
   "_notes": "Open with Escape (with nothing selected) or Backquote; it zooms in, so wait ~0.8 s before reading or clicking. Same layout in Standard and Sandbox.",
@@ -580,7 +585,7 @@
   }
  },
  "hotkeys": {
-  "_notes": "Keys confirmed in game (RESEARCH hotkey table). Tower keys are towers.json 'hotkey' (null = unbound: click the shop cell). Not listed = not confirmed: click instead (rule in RESEARCH). Ability keys 1-0/-/= are untested.",
+  "_notes": "Keys confirmed in game (RESEARCH hotkey table). Tower keys are towers.json 'hotkey' (null = unbound: click the shop cell). Not listed = not confirmed: click instead (rule in RESEARCH). Ability keys 1-0/-/= are untested. 'ability': slot i's key (only confirmed ones are listed; the game's defaults are 1-0, -, =).",
   "hero": "u",
   "upgrade": [
    ",",
@@ -590,6 +595,9 @@
   "sell": "backspace",
   "targeting_next": "tab",
   "play_ff": "space",
-  "pause_toggle": "escape"
+  "pause_toggle": "escape",
+  "ability": [
+   "1"
+  ]
  }
 }

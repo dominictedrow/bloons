@@ -13,7 +13,7 @@ Refusal reasons: 'no_money', 'unknown_tower', 'unknown_hero', 'no_tower', 'max_t
 'cooldown', 'round_only', 'round_active'.
 """
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from . import rules
 from .result import ActionResult
@@ -47,6 +47,7 @@ class Ability:
     name: str
     ready: bool
     between_rounds: bool = True     # usable while no round runs (towers.json abilities flag)
+    tid: Any = None                 # the tower id it belongs to ('hero' for the hero), if known
 
 
 @dataclass

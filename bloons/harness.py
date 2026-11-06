@@ -57,6 +57,13 @@ def _read_probe(name):
     return read
 
 
+def _icon_diff(a, b):
+    import numpy as np
+    if a is None or b is None or a.shape != b.shape or a.size == 0:
+        return 0.0
+    return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean())
+
+
 def _load(name):
     return json.loads((DATA / name).read_text())
 
@@ -80,6 +87,9 @@ class BloonsHarness:
         self.ui = ui.UI
         self.towers = _load("towers.json")["towers"]
         self.heroes = _load("heroes.json")["heroes"]
+        ha = _load("hero_abilities.json")
+        self.hero_abilities, self.default_cooldown = ha["heroes"], ha["_meta"]["default_cooldown_s"]
+        self.clock = time.monotonic     # ability cooldown estimates; tests swap it
         self.account = _load("account.json") if account else None
         if hero is not None and hero not in self.heroes:
             raise KeyError(hero)
@@ -96,6 +106,7 @@ class BloonsHarness:
         self.read_button = _read_button  # -> 'idle' / 'ff_off' / 'ff_on' / None
         self.read_auto_start = _read_probe("auto_start_toggle")   # pause menu -> 'on' / 'off' / None
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
+        self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
         self.new_episode()
 
@@ -105,7 +116,10 @@ class BloonsHarness:
         self.registry = {}            # tid -> guards.TowerRec
         self.hero = None              # guards.HeroRec once placed
         self.bought = set()           # tower kinds bought at least once this game
-        self.abilities = []           # [guards.Ability], read off the ability bar
+        # Ability bar slots in order of first gain. The game groups identical abilities into one
+        # icon (with a ready-count badge), so a slot is an ability name with its instances:
+        # {name, cooldown, between_rounds, inst: {(tid, path): ready_at}}.
+        self.ability_slots = []
         self.round_active = False     # Standard: set by start_round; the round loop clears it
         self.fast_forward = None      # last FF state read or set
         self.locked = set()          # tower kinds not available (mode / unlocks)
@@ -137,6 +151,7 @@ class BloonsHarness:
         if self.hero_choice is None:
             raise ValueError("no hero chosen for this game")
         self.hero = guards.HeroRec(self.hero_choice, tuple(xy), 1, 0, int(spent))
+        self._gain_hero_abilities(1)
         return HERO_TID
 
     def record_upgrade(self, tid, path, price):
@@ -144,6 +159,9 @@ class BloonsHarness:
         tiers = list(t.tiers)
         tiers[path] += 1
         t.tiers, t.spent = tuple(tiers), t.spent + int(price)
+        for a in (self.towers[t.kind].get("stats") or {}).get("abilities") or []:
+            if a["path"] == path and a["tier"] == tiers[path]:
+                self._gain_ability(tid, a["name"], a.get("cooldown"), a.get("between_rounds", True), path)
 
     def unregister(self, tid):
         """Forget a sold tower (or the hero, tid 'hero')."""
@@ -151,6 +169,7 @@ class BloonsHarness:
             self.hero = None
         else:
             self.registry.pop(tid)
+        self._drop_abilities(lambda key: key[0] == tid)
 
     # --- contexts for guards / placement ----------------------------------------------------
     def guard_state(self):
@@ -160,6 +179,40 @@ class BloonsHarness:
             money=self.money or 0, difficulty=self.difficulty, towers=self.towers, heroes=self.heroes,
             account=self.account, registry=self.registry, hero=self.hero, hero_choice=self.hero_choice,
             bought=self.bought, abilities=self.abilities, round_active=self.round_active, locked=self.locked)
+
+    # --- abilities (bar order = the order they were gained) ---------------------------------
+    def _gain_ability(self, tid, name, cooldown, between_rounds=True, path=None):
+        """A tower tier or hero level added an activated ability. A tower's later tier on the
+        same path (e.g. Turbo -> Perma Charge) replaces its earlier one. New abilities start
+        on cooldown (seen live, step 4.5)."""
+        if path is not None:
+            self._drop_abilities(lambda key: key == (tid, path))
+        cd = float(cooldown) if cooldown else float(self.default_cooldown)
+        slot = next((a for a in self.ability_slots if a["name"] == name), None)
+        if slot is None:
+            slot = {"name": name, "cooldown": cd, "between_rounds": bool(between_rounds), "inst": {}}
+            self.ability_slots.append(slot)
+        slot["inst"][(tid, path)] = self.clock() + cd
+
+    def _drop_abilities(self, match):
+        for a in self.ability_slots:
+            a["inst"] = {k: v for k, v in a["inst"].items() if not match(k)}
+        self.ability_slots = [a for a in self.ability_slots if a["inst"]]
+
+    def _gain_hero_abilities(self, level):
+        for a in self.hero_abilities.get(self.hero_choice) or []:
+            if a["level"] == level:
+                self._gain_ability(HERO_TID, a["name"], a["cooldown_s"])
+
+    @property
+    def abilities(self):
+        """[guards.Ability] in bar order. `ready` is an estimate from the cooldown (game seconds
+        counted as wall seconds: conservative with fast-forward on) until the bar is read
+        from pixels (step 5.4)."""
+        now = self.clock()
+        return [guards.Ability(i, a["name"], any(now >= t for t in a["inst"].values()), a["between_rounds"],
+                               next(iter(a["inst"]))[0])
+                for i, a in enumerate(self.ability_slots)]
 
     def place_context(self):
         placed = [Placed(t.kind, t.xy, t.tiers, t.tid) for t in self.registry.values()]
@@ -180,7 +233,7 @@ class BloonsHarness:
             return k.lower() if k else None
         k = self.ui["hotkeys"].get(action)
         if isinstance(k, list):
-            return k[path] if path is not None else None
+            return k[path] if path is not None and path < len(k) else None
         return k
 
     def press(self, action, xy=None, path=None, wait=None):
@@ -401,6 +454,7 @@ class BloonsHarness:
             return r
         h = self.hero
         h.level, h.xp_into_level, h.spent = h.level + 1, 0, h.spent + g.cost
+        self._gain_hero_abilities(h.level)
         return ActionResult(True, "leveled", g.cost, h.level)
 
 
@@ -437,10 +491,9 @@ class BloonsHarness:
         Standard: only from idle (▶); play_ff, then the button must turn to ▶▶.
         Sandbox: the ▶▶ button shows all the time and Space doesn't send bloons, so this
         switches to the bloon panel, clicks its send button and switches back to the shop.
-        Nothing on screen confirms the send there; round_active isn't tracked in Sandbox."""
-        g = guards.can_start_round(self.guard_state())
-        if not g:
-            return g
+        Nothing on screen confirms the send or the round's end there, so a send always goes
+        (Sandbox can stack rounds) and sets round_active for good: round-only abilities stay
+        allowed for the rest of the Sandbox game."""
         if self.mode == "sandbox":
             r = self.sandbox_panel("bloons")
             if not r:
@@ -448,8 +501,12 @@ class BloonsHarness:
             if not self.game.click(*self.ui["buttons"]["sandbox_send_round"]):
                 return ActionResult(False, "not_front")
             self.sleep(self.ui["timing_s"]["after_click"])
+            self.round_active = True
             r = self.sandbox_panel("shop")
             return ActionResult(True, "sent", 0) if r else r
+        g = guards.can_start_round(self.guard_state())
+        if not g:
+            return g
         b = self._poll(self.read_button)
         if b is None:
             return ActionResult(False, "no_button")
@@ -517,3 +574,85 @@ class BloonsHarness:
             return result
         self.auto_start = bool(on)
         return ActionResult(True, "set" if cur != want else "unchanged", 0, bool(on))
+
+    # --- 4.5 abilities ----------------------------------------------------------------------
+    def slot_crop(self, frame, slot, panel_side=None):
+        """The ability bar icon for `slot` cut from a content frame (bottom clipped at the
+        screen edge), or None."""
+        if frame is None:
+            return None
+        h, w = frame.shape[:2]
+        x, y = ui.ability_slot(slot, panel_side)
+        hx, hy = self.ui["ability_bar"]["icon_half"]
+        return frame[max(round((y - hy) * h), 0):h, max(round((x - hx) * w), 0):min(round((x + hx) * w), w)]
+
+    def _ability_fired(self, slot, before):
+        """Did the slot's icon change like a use does (ring over a darkened icon)?"""
+        need = self.ui["ability_bar"]["used_min_diff"]
+        for _ in range(3):
+            if self.icon_diff(before, self.slot_crop(self.content(), slot)) >= need:
+                return True
+            self.sleep(0.15)
+        return False
+
+    def _after_use(self, slot, fired, key=None):
+        """Book the use on one instance: `key` (use_ability_of), else the instance that has been
+        ready longest. Not fired: probably still cooling down (the estimate was early), so every
+        instance backs off a little."""
+        a, now = self.ability_slots[slot], self.clock()
+        if not fired:
+            for k, t in a["inst"].items():
+                a["inst"][k] = max(t, now + 3.0)
+            return ActionResult(False, "unconfirmed", 0)
+        if key is None:
+            key = min(a["inst"], key=a["inst"].get)
+        a["inst"][key] = now + a["cooldown"]
+        return ActionResult(True, "used", 0, a["name"])
+
+    def use_ability(self, slot, target=None):
+        """Activate ability bar slot `slot` (0-based; one icon per ability name, in order of first gain; a press uses one instance):
+        its hotkey if confirmed, else a click on the icon. `target` (x, y): click it next, for
+        abilities that ask for a point. Confirmed by the icon changing. ok -> value is the
+        ability's name. With no panel open (actions close theirs), the bar is in place."""
+        g = guards.can_use_ability(slot, self.guard_state())
+        if not g:
+            return g
+        before = self.slot_crop(self.content(), slot)
+        r = self.press("ability", xy=ui.ability_slot(slot), path=slot)
+        if not r:
+            return r
+        if target is not None:
+            if not self.game.click(*target):
+                return ActionResult(False, "not_front")
+            self.sleep(self.ui["timing_s"]["after_click"])
+        return self._after_use(slot, self._ability_fired(slot, before))
+
+    def place_ability_target(self, slot, x, y):
+        """Activate a targeted ability and click its target point (x, y)."""
+        return self.use_ability(slot, target=(x, y))
+
+    def use_ability_of(self, tid):
+        """Activate tower `tid`'s (or the hero's) ability from its panel: the big ability icon
+        next to the panel. A tower with two abilities uses the first. Confirmed on the bar
+        after the panel is closed."""
+        found = [(i, k) for i, a in enumerate(self.ability_slots) for k in a["inst"] if k[0] == tid]
+        slot, key = found[0] if found else (None, None)
+        if slot is None:
+            return ActionResult(False, "no_ability" if tid in self.registry or tid == HERO_TID else "no_tower")
+        if not self.round_active and not self.ability_slots[slot]["between_rounds"]:
+            return ActionResult(False, "round_only")
+        if self.clock() < self.ability_slots[slot]["inst"][key]:
+            return ActionResult(False, "cooldown")
+        before = self.slot_crop(self.content(), slot)
+        r = self.select_tower(tid)
+        if not r:
+            return r
+        side = self.panel_side()
+        if side is None:
+            return ActionResult(False, "no_panel")
+        clicked = self.game.click(*ui.panel(side)["ability_icon"])
+        self.sleep(self.ui["timing_s"]["after_click"])
+        self.close_panel(side)
+        if not clicked:
+            return ActionResult(False, "not_front")
+        return self._after_use(slot, self._ability_fired(slot, before), key)

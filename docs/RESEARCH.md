@@ -42,7 +42,7 @@ Bindings read from the in-game Settings → Hotkeys page (defaults; Dom hasn't c
 | Reverse targeting | Ctrl+Tab | **doesn't work** via PostToPid or HID, even with a real Ctrl down/up. Use the ◀ arrow on the panel's targeting label |
 | Pause | Backquote (opens) / Esc (toggles) | both confirmed; Backquote doesn't close the menu |
 | Play / fast-forward | Space | confirmed in a Standard game: starts the round, then toggles fast-forward (the ▶▶ arrows switch between dark and bright). Did nothing in the sandbox, where the button already showed ▶▶ |
-| Activated abilities 1–12 | 1–0, Minus, Equals | not tested yet (no ability tower affordable early). Test when the harness first uses one |
+| Activated abilities 1–12 | 1–0, Minus, Equals | **1 confirmed** (slot 0, Boomerang Turbo Charge, 2026-11-05). 2–= not tested yet (needs two different abilities on the bar) |
 | Monkey Special / Special 2 | PageDown / PageUp | not tested |
 | Powers (Road Spikes … Cash Drop) | Shift+1 … Shift+RightBracket | not tested; modifier combos look unreliable (see Ctrl+Tab), so plan to click |
 | Sandbox: send bloon | Ctrl+1 … | no visible effect via either method |
@@ -244,3 +244,11 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
   - **Sandbox side panel** (probe `sandbox_panel`, the bottom-left toggle button): orange (≈13, 203, 255) with the tower shop, blue (≈240, 193, 20) with the bloon-send panel. Under the pause overlay it reads as neither.
   - **Fast-forward does toggle in Sandbox** (Space and the ▶▶ click both switch `ff_off` ↔ `ff_on`), even though the button never shows idle there. So Sandbox round state can't come from the button: the harness doesn't track `round_active` in Sandbox.
   - Live: `start_round()` in Sandbox (bloon panel → send → back to the shop, 2.1 s; red bloons on the track); `set_fast_forward(True / True / False)` → set / unchanged / set; `set_auto_start(False / False / True)` → set / unchanged / set, ~3.4 s each with the menu zoom. The Standard path of `start_round` (idle → Space → ▶▶) isn't checked live through the harness yet; it uses the button reads from step 1.5.
+- 2026-11-05 — **Abilities through the harness (step 4.5)**, Monkey Meadow Easy Sandbox, two Boomerangs at 0-4-0 (Turbo Charge, 45 s, round-only).
+  - **A new ability starts on cooldown:** right after the 0-4-0 purchase the icon is dark, with an orange arc that shrinks as the cooldown runs.
+  - **Ready** = the full-colour icon with no ring. **After a use** a full orange ring appears over the darkened icon and shrinks. The icon crop's mean |diff| is ~30 against ~5 of frame noise (0.4 s apart), and ≤ 9 over 3 s with a ring shrinking and leaves passing.
+  - **Identical abilities share one bar icon.** Two Turbo Charges gave one icon with a white **"2" ready-count badge**. Each press fires one instance: the 1st press removes the badge and the icon stays ready (diff ~14); the 2nd shows the ring of the earliest instance's remaining cooldown, so the ring isn't full (diff ~30); the 3rd does nothing. So bar slots are ability names, not towers.
+  - **Key `1` fires slot 0.** Pressed while nothing is ready, it does nothing (the harness reports `unconfirmed`).
+  - **The big ability icon next to the panel** (`upgrade_panel.<side>.ability_icon`) fires the selected tower's own ability (`use_ability_of`, 1.7 s including select and close).
+  - In Sandbox nothing shows whether a round is running (the button always shows ▶▶), so a Sandbox send now sets `round_active` for good, and round-only abilities stay allowed after the first send.
+  - **Hero bar abilities** are in `data/hero_abilities.json`, curated from the heroes.json level texts (passives like Sauda's Bloon Bleed and Etienne's UAV dropped). Only Benjamin's Biohack has been seen on the bar so far.
