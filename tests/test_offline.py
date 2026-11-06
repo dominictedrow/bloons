@@ -225,6 +225,7 @@ def test_hud_parse_edge_cases():
     assert parse_money("$1,35") is None and parse_money("$13,57") is None
     assert parse_money("$9.999.609") == 9999609 and parse_money("$1.020") == 1020   # seen in game
     assert parse_money("$1.5") is None
+    assert parse_money("·9,998,181") == 9998181 and parse_money("·20") is None and parse_money("·1,35") is None
     # digit confusables, only inside numeric-looking tokens
     assert parse_lives("2OO") == 200 and parse_lives("l89") == 189
     assert parse_money("$1,3S7") == 1357
@@ -965,3 +966,290 @@ if __name__ == "__main__":
     test_round_tracker_outcome()
     test_round_tracker_on_frames()
     print("ok")
+
+
+# --- harness skeleton (PLAN 4.1) -------------------------------------------------------------
+
+class FakeGame:
+    """Records input; read_hud returns whatever `hud` is set to."""
+    def __init__(self, front=True):
+        from bloons.hud import Hud
+        self.calls, self.front = [], front
+        self.hud = Hud(200, 650, 1, 40)
+
+    on_key = on_click = None      # optional hooks: change self.hud when an input lands
+
+    def key(self, k):
+        self.calls.append(("key", k))
+        if self.on_key:
+            self.on_key(self, k)
+        return self.front
+
+    def click(self, x, y):
+        self.calls.append(("click", round(x, 4), round(y, 4)))
+        if self.on_click:
+            self.on_click(self, x, y)
+        return self.front
+
+    def grab(self):
+        import numpy as np
+
+        class F:
+            def content_bgr(self):
+                return np.zeros((8, 8, 3), np.uint8)
+        return F()
+
+    def move(self, x, y):
+        self.calls.append(("move", x, y)); return self.front
+
+    def scroll(self, x, y, lines):
+        self.calls.append(("scroll", lines)); return self.front
+
+    def read_hud(self, frame=None):
+        return self.hud
+
+
+def test_harness_registry_and_guards():
+    from bloons.harness import BloonsHarness
+    from bloons.placement import can_place
+    g = FakeGame()
+    h = BloonsHarness(g, "tree_stump", hero="benjamin", sleep=lambda s: None)
+    assert h.money is None and h.available_actions()[0]["action"] == "start_round"
+    assert not any(a["action"] == "buy_tower" for a in h.available_actions())   # money unknown -> $0
+    h.refresh_hud()
+    assert h.money == 650
+    acts = h.available_actions()
+    dart = next(a for a in acts if a.get("kind") == "dart_monkey")
+    assert dart["cost"] == 170                                         # Easy + Dom's MK, as in the shop
+    assert not any(a.get("kind") == "super_monkey" for a in acts)       # too expensive
+    tid = h.register("dart_monkey", (0.5, 0.5), 170)
+    assert tid == 1 and h.register("dart_monkey", (0.6, 0.6), 170) == 2
+    assert any(a["action"] == "upgrade" and a["tid"] == 1 for a in h.available_actions())
+    h.record_upgrade(1, 0, 120)
+    assert h.registry[1].tiers == (1, 0, 0) and h.registry[1].spent == 290
+    r = can_place("dart_monkey", 0.502, 0.5, h.place_context())
+    assert not r and r.reason == "overlaps_tower:1"
+    h.register_hero((0.2, 0.2), 1020)
+    assert not can_place("dart_monkey", 0.201, 0.2, h.place_context())
+    assert any(a.get("tid") == "hero" for a in h.available_actions())
+    h.unregister(2); h.unregister("hero")
+    assert list(h.registry) == [1] and h.hero is None
+    h.new_episode()
+    assert h.registry == {} and h.money is None
+
+
+def test_harness_input():
+    from bloons.harness import BloonsHarness, SCROLL_LINES
+    from bloons.ui import shop_cell
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None)
+    assert h.key_for("dart_monkey") == "q" and h.key_for("desperado") is None
+    assert h.key_for("upgrade", 2) == "/" and h.key_for("hero") == "u" and h.key_for("powers") is None
+    assert h.select_shop("dart_monkey") and g.calls == [("key", "q")]
+    g.calls.clear()
+    assert h.select_shop("mermonkey") and h.select_shop("skywarden") and h.select_shop("desperado")
+    x, y = shop_cell("mermonkey")[1]
+    assert g.calls[:2] == [("scroll", -SCROLL_LINES), ("click", round(x, 4), round(y, 4))]
+    assert g.calls[2][0] == "click"                                    # same layout: no scroll
+    assert g.calls[3] == ("scroll", SCROLL_LINES) and g.calls[4][0] == "click"
+    assert h.select_shop("bogus").reason == "unknown_tower"
+    g.calls.clear()
+    assert h.press("powers", xy=(0.877, 0.94)) and g.calls == [("click", 0.877, 0.94)]
+    assert h.press("targeting_prev").reason == "no_input"
+    g.front = False
+    assert h.press("sell").reason == "not_front"
+
+
+def test_harness_place_and_sell(tmp_path):
+    from bloons.harness import BloonsHarness
+    from bloons.hud import Hud
+    g = FakeGame()
+    h = BloonsHarness(g, "tree_stump", sleep=lambda s: None, spots_path=tmp_path / "s.spots.json")
+    tints = []
+    h.tint = lambda base, held, x, y: tints.pop(0) if tints else "none"
+
+    def spend(game, x, y):            # a click on the map places: money drops by the Dart price
+        held_here = len(game.calls) > 1 and game.calls[-2] == ("move", x, y)   # not a select click
+        if held_here and game.hud.money >= 170:
+            game.hud = Hud(200, game.hud.money - 170, 1, 40)
+    g.on_click = spend
+    h.refresh_hud()
+    tints[:] = ["ok"]
+    r = h.place_tower("dart_monkey", 0.10, 0.50)
+    h.refresh_hud()
+    assert r and r.value == 1 and r.cost == 170 and h.money == 480
+    assert h.registry[1].xy == (0.10, 0.50) and "dart_monkey" in h.bought
+    assert h.memory.lookup("land_r6", 0.10, 0.50) == "ok"
+    assert ("key", "q") in g.calls
+    # the tint says blocked: cancel, remember the spot, nothing registered
+    g.calls.clear()
+    tints[:] = ["blocked"]
+    r = h.place_tower("dart_monkey", 0.10, 0.80)
+    assert not r and r.reason == "blocked" and list(h.registry) == [1]
+    assert ("click", 0.8218, 0.1066) in g.calls and h.memory.lookup("land_r6", 0.10, 0.80) == "blocked"
+    calls = len(g.calls)
+    assert h.place_tower("dart_monkey", 0.10, 0.80).reason == "memory_blocked" and len(g.calls) == calls   # no input
+    x, y = h.map["path"]["polyline"][10]
+    assert h.place_tower("dart_monkey", x, y).reason == "path"
+    assert h.place_tower("dart_monkey", 0.101, 0.50).reason == "overlaps_tower:1"
+    # no hold at all (tint 'none' twice): cancel, nothing remembered
+    assert h.place_tower("dart_monkey", 0.70, 0.90).reason == "no_hold"
+    assert h.memory.lookup("land_r6", 0.70, 0.90) == "unknown"
+    # sell: Backspace, refund confirmed on the HUD
+    g.on_key = lambda game, k: k == "backspace" and setattr(game, "hud", Hud(200, game.hud.money + 119, 1, 40))
+    r = h.sell(1)
+    assert r and r.cost == -119 and h.registry == {} and g.calls[-1] == ("key", "backspace")
+    assert h.sell(1).reason == "no_tower"
+    g.hud = Hud(200, 20, 1, 40); h.refresh_hud(); h.refresh_hud()
+    assert h.place_tower("dart_monkey", 0.10, 0.50).reason == "no_money"
+
+
+def test_harness_upgrade_and_hero_level(tmp_path):
+    from bloons import guards
+    from bloons.harness import BloonsHarness
+    from bloons.hud import Hud
+    from bloons.ui import panel
+    g = FakeGame()
+    g.hud = Hud(200, 5000, 1, 40)
+    h = BloonsHarness(g, "tree_stump", hero="benjamin", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    h.refresh_hud()
+    h.read_panel = lambda frame: "right"
+    tid = h.register("dart_monkey", (0.2, 0.5), 170)
+    price = guards.upgrade_cost(h.registry[tid], 0, h.guard_state())
+    g.on_key = lambda game, k: k == "," and setattr(game, "hud", Hud(200, game.hud.money - price, 1, 40))
+    r = h.upgrade(tid, 0)
+    assert r and r.value == (1, 0, 0) and r.cost == price and h.registry[tid].spent == 170 + price
+    assert g.calls[-3:] == [("click", 0.2, 0.5), ("key", ","), ("click", *[round(v, 4) for v in panel("right")["close"]])]
+    # the game didn't take it (money unchanged): unconfirmed, tiers unchanged, panel closed
+    g.on_key = None
+    r = h.upgrade(tid, 0)
+    assert not r and r.reason == "unconfirmed" and h.registry[tid].tiers == (1, 0, 0)
+    h.registry[tid].tiers = (2, 0, 3)
+    assert h.upgrade(tid, 1).reason == "crosspath" and h.upgrade(99, 0).reason == "no_tower"
+    # no panel found: refuse
+    h.read_panel = lambda frame: None
+    h.registry[tid].tiers = (0, 0, 0)
+    assert h.upgrade(tid, 0).reason == "no_panel"
+    # hero level: the level-up button on the panel's side
+    h.read_panel = lambda frame: "left"
+    assert h.buy_hero_level().reason == "no_hero"
+    h.register_hero((0.6, 0.3), 1020)
+    lv = guards.hero_level_price(h.guard_state())
+    up = tuple(round(v, 4) for v in panel("left")["hero_level_up"])
+    g.on_click = lambda game, x, y: (round(x, 4), round(y, 4)) == up and setattr(game, "hud", Hud(200, game.hud.money - lv, 1, 40))
+    r = h.buy_hero_level()
+    assert r and r.value == 2 and h.hero.level == 2 and h.hero.spent == 1020 + lv
+
+
+# --- rounds, fast-forward, auto start (PLAN 4.4) --------------------------------------------
+def test_vision_toggle_probes():
+    """Live frames 2026-11-05: pause-menu Auto Start on/off, Sandbox shop vs bloon panel."""
+    import cv2
+    from bloons.vision import probe
+    d = FIX / "probes"
+    want = {"auto_start_on": ("on", None), "auto_start_off": ("off", None),
+            "sandbox_shop": (None, "shop"), "sandbox_bloons": (None, "bloons")}
+    for stem, (auto, side) in want.items():
+        img = cv2.imread(str(d / f"{stem}.jpg"))
+        assert probe(img, "auto_start_toggle").label == auto, stem
+        assert probe(img, "sandbox_panel").label == side, stem
+
+
+def _round_harness(tmp_path, mode="standard"):
+    from bloons.harness import BloonsHarness
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json", mode=mode)
+    return g, h
+
+
+def test_harness_start_round_and_ff(tmp_path):
+    g, h = _round_harness(tmp_path)
+    st = {"button": "idle"}
+    h.read_button = lambda frame: st["button"]
+
+    def on_key(game, k):
+        if k == "space":
+            st["button"] = {"idle": "ff_off", "ff_off": "ff_on", "ff_on": "ff_off"}[st["button"]]
+    g.on_key = on_key
+    # FF refused at idle (the press would start the round), nothing sent
+    assert h.set_fast_forward(True).reason == "round_idle" and g.calls == []
+    r = h.start_round()
+    assert r and r.reason == "started" and h.round_active and h.fast_forward is False
+    assert g.calls == [("key", "space")]
+    # the guard now refuses without touching the game
+    assert h.start_round().reason == "round_active" and len(g.calls) == 1
+    # FF: toggled only when it differs
+    assert h.set_fast_forward(False).reason == "unchanged" and len(g.calls) == 1
+    r = h.set_fast_forward(True)
+    assert r and r.reason == "set" and r.value is True and st["button"] == "ff_on" and len(g.calls) == 2
+    assert h.set_fast_forward(True).reason == "unchanged" and len(g.calls) == 2
+    # the button already running but the harness thought idle: refuse and learn it
+    h.round_active = False
+    assert h.start_round().reason == "round_active" and h.round_active and len(g.calls) == 2
+    # the game ignores the key: unconfirmed
+    h.round_active, st["button"], g.on_key = False, "idle", None
+    assert h.start_round().reason == "unconfirmed" and not h.round_active
+    h.read_button = lambda frame: None
+    assert h.start_round().reason == "no_button" and h.set_fast_forward(True).reason == "no_button"
+
+
+def test_harness_start_round_sandbox(tmp_path):
+    from bloons.ui import UI
+    g, h = _round_harness(tmp_path, "sandbox")
+    st = {"side": "shop"}
+    h.read_sandbox_panel = lambda frame: st["side"]
+    powers = tuple(round(v, 4) for v in UI["buttons"]["powers"])
+    send = tuple(round(v, 4) for v in UI["buttons"]["sandbox_send_round"])
+
+    def on_click(game, x, y):
+        if (round(x, 4), round(y, 4)) == powers:
+            st["side"] = "bloons" if st["side"] == "shop" else "shop"
+    g.on_click = on_click
+    h.shop_layout = "top"
+    r = h.start_round()
+    assert r and r.reason == "sent" and st["side"] == "shop" and h.shop_layout is None
+    assert g.calls == [("click", *powers), ("click", *send), ("click", *powers)]
+    # Sandbox can re-send: round_active isn't tracked there
+    assert not h.round_active
+    # already on the bloon panel: no toggle before sending
+    g.calls.clear()
+    st["side"] = "bloons"
+    assert h.start_round() and g.calls == [("click", *send), ("click", *powers)]
+    # the toggle didn't take: refuse before sending
+    g.calls.clear()
+    st["side"], g.on_click = "shop", None
+    assert h.start_round().reason == "no_panel" and ("click", *send) not in g.calls
+
+
+def test_harness_set_auto_start(tmp_path):
+    from bloons.ui import UI
+    g, h = _round_harness(tmp_path)
+    st = {"kind": "game", "auto": "on"}
+    h.read_kind = lambda frame: st["kind"]
+    h.read_auto_start = lambda frame: st["auto"] if st["kind"] == "pause" else None
+    pt = lambda k, sec="buttons": tuple(round(v, 4) for v in UI[sec][k])
+    gear, toggle, cont = pt("settings"), pt("auto_start_toggle", "pause"), pt("continue", "pause")
+
+    def on_click(game, x, y):
+        p = (round(x, 4), round(y, 4))
+        if p == gear:
+            st["kind"] = "pause"
+        elif p == cont:
+            st["kind"] = "game"
+        elif p == toggle and st["kind"] == "pause":
+            st["auto"] = "off" if st["auto"] == "on" else "on"
+    g.on_click = on_click
+    r = h.set_auto_start(True)
+    assert r and r.reason == "unchanged" and h.auto_start is True
+    assert g.calls == [("click", *gear), ("click", *cont)] and st["kind"] == "game"
+    g.calls.clear()
+    r = h.set_auto_start(False)
+    assert r and r.reason == "set" and st["auto"] == "off" and h.auto_start is False
+    assert g.calls == [("click", *gear), ("click", *toggle), ("click", *cont)]
+    # already paused: leave the menu open
+    g.calls.clear()
+    st["kind"] = "pause"
+    assert h.set_auto_start(True) and st["auto"] == "on" and g.calls == [("click", *toggle)] and st["kind"] == "pause"
+    # the menu doesn't open
+    st["kind"], g.on_click = "game", None
+    assert h.set_auto_start(False).reason == "no_pause_menu"

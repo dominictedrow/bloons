@@ -297,6 +297,20 @@ class Game:
         self._mouse(Q.kCGEventLeftMouseUp, pb)
         return True
 
+    def scroll(self, nx, ny, lines):
+        """Scroll wheel over a normalized point: `lines` > 0 scrolls up, < 0 down. Sent as HID
+        events of at most 5 lines each (the shop needs ~30 to go end to end, RESEARCH 3.1)."""
+        if not self.move(nx, ny):
+            return False
+        step = 5 if lines > 0 else -5
+        left = int(lines)
+        while left:
+            n = step if abs(left) >= 5 else left
+            Q.CGEventPost(Q.kCGHIDEventTap, Q.CGEventCreateScrollWheelEvent(None, Q.kCGScrollEventUnitLine, 1, n))
+            left -= n
+            time.sleep(0.02)
+        return True
+
     def key(self, name):
         """Tap one plain key ('q', ',', 'space', 'escape', ...). No modifier combos (they don't
         register in BTD6+)."""

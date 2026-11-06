@@ -27,6 +27,18 @@
    "box": [0.917, 0.91, 0.928, 0.97],
    "classes": {"idle": [9, 224, 97], "ff_off": [76, 227, 137], "ff_on": [76, 236, 152]},
    "max_dist": 6
+  },
+  "auto_start_toggle": {
+   "_notes": "Pause-menu Auto Start knob: blue when on, dark track when off. Read >= 0.8 s after the menu opens (it zooms in). 2026-11-05, Meadow Sandbox",
+   "box": [0.693, 0.27, 0.707, 0.296],
+   "classes": {"on": [250, 208, 1], "off": [15, 31, 54]},
+   "max_dist": 40
+  },
+  "sandbox_panel": {
+   "_notes": "Sandbox only: the bottom-left toggle button is orange while the tower shop shows, blue while the bloon-send panel shows. 2026-11-05",
+   "box": [0.853, 0.905, 0.862, 0.975],
+   "classes": {"shop": [13, 203, 255], "bloons": [240, 193, 20]},
+   "max_dist": 50
   }
  }
 }

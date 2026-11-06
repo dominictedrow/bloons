@@ -82,6 +82,18 @@ def held_tint(held, base, centre=None):
     return "ok"
 
 
+def tint_at(base, held, x, y):
+    """held_tint() at normalized (x, y) from two content-area BGR frames (title bar cut off,
+    same size): `base` grabbed before the tower was picked up, `held` while holding it there."""
+    if base is None or held is None or base.shape != held.shape:
+        return "none"
+    h, w = held.shape[:2]
+    x0, y0, x1, y1 = probe_box(x, y)
+    px0, py0 = max(round(x0 * w), 0), max(round(y0 * h), 0)
+    px1, py1 = min(round(x1 * w), w), min(round(y1 * h), h)
+    return held_tint(held[py0:py1, px0:px1], base[py0:py1, px0:px1], (x * w - px0, y * h - py0))
+
+
 @dataclass(frozen=True)
 class Grid:
     x0: float
