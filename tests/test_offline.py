@@ -1501,9 +1501,9 @@ def _menu_harness(tmp_path, start, save_exists=False):
         if st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == P("map_select", "category_beginner"):
             st["pages"] = 1                                   # lands in Beginner, not always page 0
         elif st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == tuple(round(v, 4) for v in ms["next_page"]):
-            st["pages"] = min(st["pages"] + 1, len(pages) - 1)
+            st["pages"] = (st["pages"] + 1) % len(pages)        # wraps like the game
         elif st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == tuple(round(v, 4) for v in ms["prev_page"]):
-            st["pages"] = max(st["pages"] - 1, 0)
+            st["pages"] = (st["pages"] - 1) % len(pages)
         else:
             on_click(game, x, y)
     g.on_click = click2
@@ -1530,6 +1530,27 @@ def test_harness_new_game_save_exists(tmp_path):
     assert h.map_name == "monkey_meadow"                    # unchanged on failure
     g, h, st = _menu_harness(tmp_path, "home", save_exists=True)
     assert h.new_game("tree_stump", "easy", "standard", overwrite_save=True) and h.map_name == "tree_stump"
+
+
+def test_harness_pick_map_fallbacks(tmp_path):
+    from bloons.ui import UI
+    # the name 'LOGS' never OCRs, but 'END OF THE ROAD' places the page: click the data slot
+    g, h, st = _menu_harness(tmp_path, "home")
+    real = h.read_map_names
+    h.read_map_names = lambda: ["" if n == "LOGS" else n for n in real()]
+    r = h.new_game("logs", "easy", "standard")
+    assert r and st["slot"] == (4, 0) and ("click_slot", 0) in h.pick_trace
+    # a page flip lost mid-slide is sent again
+    g, h, st = _menu_harness(tmp_path, "home")
+    click, dropped = g.on_click, []
+    def lossy(game, x, y):
+        if (round(x, 4), round(y, 4)) == tuple(round(v, 4) for v in UI["map_select"]["next_page"]) and not dropped:
+            dropped.append(1)
+            return
+        click(game, x, y)
+    g.on_click = lossy
+    assert h.new_game("tree_stump", "easy", "standard") and st["slot"] == (1, 0)
+    assert ("flip_lost", "next_page") in h.pick_trace
 
 
 def test_harness_restart_and_home(tmp_path):

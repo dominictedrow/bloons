@@ -105,7 +105,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 4.6 `set_targeting`, `set_target_point`, `set_flight_path`, `set_patrol_points`
 - [ ] 4.7 `remove_obstacle`
 - [x] 4.8 `handle_prompts` (template → default click, overridable) — *4.7 skipped for now: no beginner map has an obstacle*
-- [ ] 4.9 `new_game`, `restart`, `go_home`
+- [x] 4.9 `new_game`, `restart`, `go_home`
 - [ ] 4.10 `tools/play.py` REPL. Drive every action by hand on Monkey Meadow
 
 ## Phase 5 — Full observation

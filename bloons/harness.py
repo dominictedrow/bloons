@@ -104,6 +104,7 @@ class BloonsHarness:
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
         self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
         self.read_map_names = self._ocr_map_names   # map select page -> 6 thumbnail names
+        self.pick_trace = []                        # last _pick_map reads / flips / clicks
         self.prompt_actions = {k: v for k, v in self.ui["prompts"].items()
                                if not k.startswith("_") and k not in ("max_steps", "after_click_s")}
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
@@ -900,31 +901,69 @@ class BloonsHarness:
             names = again
         return names
 
-    def _pick_map(self, map_name):
-        """On map select: click the map's thumbnail, found by its OCR'd name. The grid
-        reopens on the last map's page and paging wraps around every category, so the
-        current page comes from any known map in view (ui.json map_select.maps pages) and
-        the search flips toward the target's page, keeping its direction across pages with
-        no known map (forward to start)."""
+    def _page_of(self, names, pages):
+        """Beginner page index from the names in view (majority vote over every name that
+        contains a known Beginner name), or None (another category, or nothing read)."""
+        votes = {}
+        for n in names:
+            for pg, keys in enumerate(pages):
+                if any(k in n for k in keys):
+                    votes[pg] = votes.get(pg, 0) + 1
+        return max(votes, key=votes.get) if votes else None
+
+    def _flip(self, step, before, norm):
+        """One page flip, confirmed by the (normalized) names changing; a click lost
+        mid-slide is sent again once. Returns the new page's normalized stable names."""
         ms = self.ui["map_select"]
-        norm = lambda t: "".join(c for c in t.upper() if c.isalpha())
-        known = {norm(k): v["page"] for k, v in ms["maps"].items()}
-        want = norm(map_name)
-        target, step = known.get(want), "next_page"
-        for _ in range(ms["cycle_pages"]):
-            for attempt in range(2):
-                names = [norm(n) for n in self._stable_names()]
-                for i, name in enumerate(names):
-                    if want and want in name:
-                        self.game.click(*ms["slots"][i])
-                        return ActionResult(True, "map", 0, map_name)
-                here = next((pg for k, pg in known.items() for n in names if k in n), None)
-                if here is None or here != target:
-                    break                           # on the target's own page: read once more
-            if target is not None and here is not None:   # else keep going the same way
-                step = "prev_page" if here > target else "next_page"
+        names = before
+        for _ in range(2):
             self.game.click(*ms[step])
             self.sleep(1.0)
+            names = [norm(n) for n in self._stable_names()]
+            if names != before:
+                break
+            self.pick_trace.append(("flip_lost", step))
+        return names
+
+    def _pick_map(self, map_name):
+        """On map select: click the map's thumbnail, found by its OCR'd name. The grid
+        reopens on some earlier page and paging wraps around every category, so the current
+        page comes from any Beginner name in view (ui.json map_select.beginner_pages) and the
+        search flips toward the target's page, keeping its direction across pages it can't
+        place (forward to start). On the
+        target's page, a name the OCR keeps missing falls back to the data slot. Each read
+        and flip is logged in self.pick_trace."""
+        ms = self.ui["map_select"]
+        norm = lambda t: "".join(c for c in t.upper() if c.isalpha())
+        pages = [[norm(n) for n in pg] for pg in ms["beginner_pages"]]
+        want = norm(map_name)
+        info = ms["maps"].get(map_name)
+        target = info["page"] if info else self._page_of([want], pages)
+        self.pick_trace = []
+        names = [norm(n) for n in self._stable_names()]
+        misses, step = 0, "next_page"
+        for _ in range(ms["cycle_pages"]):
+            here = self._page_of(names, pages)
+            self.pick_trace.append(("page", here, names))
+            for i, name in enumerate(names):
+                if want and want in name:
+                    self.pick_trace.append(("click", i))
+                    self.game.click(*ms["slots"][i])
+                    return ActionResult(True, "map", 0, map_name)
+            if target is not None and here == target:
+                misses += 1
+                if misses < 3:                      # name not read yet: look again
+                    self.sleep(0.3)
+                    names = [norm(n) for n in self._stable_names()]
+                    continue
+                if info:
+                    self.pick_trace.append(("click_slot", info["slot"]))
+                    self.game.click(*ms["slots"][info["slot"]])
+                    return ActionResult(True, "map_by_slot", 0, map_name)
+                return ActionResult(False, "map_not_found")
+            if here is not None and target is not None:     # else keep going the same way
+                step = "prev_page" if here > target else "next_page"
+            names = self._flip(step, names, norm)
         return ActionResult(False, "map_not_found")
 
     def new_game(self, map_name=None, difficulty=None, mode=None, overwrite_save=False):
