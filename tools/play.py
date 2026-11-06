@@ -166,6 +166,9 @@ class Play(cmd.Cmd):
         if s.round_composition:
             self.say(f"  round {s.next_round} (done {s.rounds_done}): {s.round_composition['counts']}  "
                      f"rbe {s.round_composition['rbe']}")
+        if s.bloons is not None:
+            from bloons.detect import summarize
+            self.say(f"  bloons on screen: {summarize(s.bloons) or 'none'}")
         self.say("  free cells: " + "  ".join(f"{c} {int(m.ok.sum())}" for c, m in s.placeable.items()))
 
     def do_cursor(self, line):
@@ -291,7 +294,7 @@ class Play(cmd.Cmd):
         mode = next((x for x in a if x in ("standard", "sandbox")), None)
         rest = [x for x in a if x not in (diff, mode)]
         maps = [p.stem for p in (Path(__file__).resolve().parents[1] / "bloons/data/maps").glob("*.json")
-                if not p.stem.endswith(".spots") and not p.name.startswith("._")]
+                if "." not in p.stem and not p.name.startswith("._")]      # not <map>.spots / .bg
         map_name = resolve(rest[0], maps) if rest else None
         self.report(self.h.new_game(map_name, diff, mode, overwrite_save=overwrite))
 

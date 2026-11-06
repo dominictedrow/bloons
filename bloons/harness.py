@@ -127,6 +127,11 @@ class BloonsHarness:
         self.keepout = PathKeepout.from_json(self.map["path"], self.unit) if "path" in self.map else None
         self.masks = load_masks(self.map) if self.map.get("masks") else {}
         self._masks_cache = None
+        from .detect import BloonDetector, load_background
+        self.detector = BloonDetector(self.map) if "path" in self.map else None
+        bg = load_background(map_name) if self.detector is not None else None
+        if bg is not None:
+            self.detector.set_background_arrays(*bg)
         self.memory = SpotMemory.load(spots_path or DATA / "maps" / f"{map_name}.spots.json")
         if not self.memory.meta:
             self.memory.meta = {"map": map_name, "game_version": self.map["_meta"]["game_version"]}
@@ -1062,6 +1067,39 @@ class BloonsHarness:
         self.refresh_hud()
         return ActionResult(True, "restarted")
 
+    # --- 5.2 bloons -------------------------------------------------------------------------
+    def capture_background(self, n=8, gap=0.5):
+        """Replace the bloon detector's empty-track background with n grabbed frames (for this
+        session only; tools/bloon_bg.py stores one). Only with an empty track and no Standard
+        pre-round markers, i.e. in Sandbox. -> True if the detector took it."""
+        if self.detector is None:
+            return False
+        frames = []
+        for i in range(n):
+            if i:
+                self.sleep(gap)
+            frames.append(self.content())
+        return self.detector.set_background(frames)
+
+    def _detector_towers(self):
+        """Our towers' sprite areas for the detector: footprint + TOWER_SPRITE_PAD units."""
+        ctx = self.place_context()
+        from .placement import footprint_radius
+        out = []
+        for p in self._placed():
+            shape = shape_of(p.kind, p.tiers, ctx)
+            out.append((p.xy[0], p.xy[1], (footprint_radius(shape) if shape else 6) + self.TOWER_SPRITE_PAD))
+        return out
+
+    TOWER_SPRITE_PAD = 4.0
+
+    def detect_bloons(self, frame=None):
+        """[detect.Bloon] on a content frame (grabbed if None); [] without a background."""
+        if self.detector is None:
+            return []
+        self.detector.set_towers(self._detector_towers())
+        return self.detector.detect(self.content() if frame is None else frame)
+
     # --- 5.1 observation --------------------------------------------------------------------
     def _placed(self):
         placed = [Placed(t.kind, t.xy, t.tiers, t.tid) for t in self.registry.values()]
@@ -1093,12 +1131,16 @@ class BloonsHarness:
         (price table), ability estimates, path and placeable masks. Also syncs
         `round_active` from the play button and counts `rounds_done` (the HUD round reads the
         same before and after a round with auto-start off, so it's only trusted mid-round).
-        Set the Auto Start setting with set_auto_start first (else the tracker assumes off). Call it often: the round edge and outcome are
+        Set the Auto Start setting with set_auto_start first (else the tracker assumes off).
+        `bloons` (5.2): detect.Bloon list, using the map's stored empty-track background
+        (data/maps/<map>.bg.png); [] on idle Standard frames; None off the game screen or
+        for a map without a stored background. Call it often: the round edge and outcome are
         worked out across calls."""
         from . import rules
         from .observe import AbilityState, GameState, HeroState, TowerState, UpgradeOption
         f = self.game.grab()
-        screen = self.read_screen(None if f is None else f.content_bgr())
+        content = None if f is None else f.content_bgr()
+        screen = self.read_screen(content)
         hud = self.refresh_hud(f) if screen.kind == "game" else self.hud.current
         was_outcome = self.tracker.outcome
         rs = self.tracker.update(screen, hud)
@@ -1135,6 +1177,14 @@ class BloonsHarness:
             frac = 0.0 if left <= 0 else min(1.0, left / a["cooldown"])
             abilities.append(AbilityState(len(abilities), a["name"], next(iter(a["inst"]))[0], left <= 0, frac,
                                           a["between_rounds"]))
+        bloons = None
+        if screen.kind == "game" and content is not None and self.detector is not None:
+            if (self.mode == "standard" and screen.button == "idle" and rs.round_active is False
+                    and not self.round_active):
+                bloons = []                     # idle between rounds: no bloons (and the
+                                                # pre-round track markers would read as some)
+            elif self.detector.bg is not None:
+                bloons = self.detect_bloons(content)
         cur = self.hud.current
         path = self.map.get("path") or {}
         return GameState(
@@ -1148,4 +1198,5 @@ class BloonsHarness:
             path_half_width_units=path.get("half_width_units"), unit=self.unit,
             placeable=self.placeable_masks(),
             rounds_done=self.rounds_done, next_round=self.rounds_done + 1,
-            round_composition=self.rounds.get(self.rounds_done + 1) if self.mode == "standard" else None)
+            round_composition=self.rounds.get(self.rounds_done + 1) if self.mode == "standard" else None,
+            bloons=bloons)

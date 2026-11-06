@@ -3,7 +3,7 @@
 `BloonsHarness.observe()` fills a GameState from one frame (screen kind, play button, HUD)
 plus what the harness knows (registry, hero, ability estimates) and the map data (path,
 placeable masks). Fields that later steps fill are None until then:
-  bloons (5.2), ability cooldown_frac from pixels (5.4; until then from the harness's
+  ability cooldown_frac from pixels (5.4; until then from the harness's
   estimate), measured ranges (5.5). upgrade_options come from the price table (5.3 adds the
   panel OCR check). to_vector / grid image are 5.6.
 """
@@ -91,7 +91,7 @@ class GameState:
     next_round: int
     # rounds.json entry for `next_round` (Standard only): groups, counts, rbe, ... or None
     round_composition: Optional[dict]
-    bloons: Optional[list] = None   # [(x, y, type_guess)] once 5.2 exists
+    bloons: Optional[list] = None   # [detect.Bloon(x, y, kind, count, area, dist)]; None = no background yet
     extra: dict = field(default_factory=dict)
 
 

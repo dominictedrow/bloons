@@ -622,7 +622,7 @@ def test_map_masks():
     from bloons.placement import Mask
     maps = Path(__file__).resolve().parents[1] / "bloons/data/maps"
     files = sorted(f for f in maps.glob("*.json")
-                   if not f.name.startswith("._") and not f.name.endswith(".spots.json")) if maps.exists() else []   # FAT32 sidecars
+                   if not f.name.startswith("._") and "." not in f.stem) if maps.exists() else []   # FAT32 sidecars; <map>.spots / .bg
     for f in files:
         data = json.loads(f.read_text())
         assert data["_meta"]["game_version"], f.name
@@ -1650,3 +1650,91 @@ def test_harness_observe(tmp_path):
     g, h = _round_harness(tmp_path, mode="sandbox")
     h.read_screen = lambda frame: Screen("game", "ff_off")
     assert [h.observe().round_active for _ in range(3)] == [False] * 3 and h.observe().round_composition is None
+
+
+# --- bloon detector (PLAN 5.2) --------------------------------------------------------------
+BLOON_FIX = Path(__file__).resolve().parents[1] / "bloons/data/fixtures/bloons"
+
+
+def _bloon_frames(names):
+    import cv2
+    return [cv2.imread(str(BLOON_FIX / f"{n}.png")) for n in names]
+
+
+def test_bloon_detector_fixtures():
+    """Sandbox captures on Monkey Meadow, 3 bloons of one type each (pixels outside the path
+    band blacked out). Covers a bloon on a swaying grass tuft (black_05), a bloon cut in two
+    by it (yellow_02) and Halloween bats over the track (blue_09: at most one stray)."""
+    import json
+    from bloons import detect
+    det = detect.BloonDetector(json.loads((Path(__file__).resolve().parents[1] / "bloons/data/maps/monkey_meadow.json").read_text()))
+    assert det.detect(_bloon_frames(["red_04"])[0]) == []              # no background yet
+    runs = {"a": ["red_04", "green_05", "yellow_02", "pink_04", "white_03", "black_05"],
+            "b": ["purple_04", "lead_05", "zebra_04", "rainbow_05", "ceramic_06"]}
+    for run, names in runs.items():
+        assert det.set_background(_bloon_frames([f"empty_{run}_{i}" for i in range(4)]))
+        for name, frame in zip(names, _bloon_frames(names)):
+            b = det.detect(frame)
+            assert detect.summarize(b) == {name.split("_")[0]: 3}, (name, b)
+            assert all(0 <= x.x <= 1 and 0 <= x.y <= 1 and x.count == 1 for x in b)
+    det.set_background(_bloon_frames([f"empty_a_{i}" for i in range(4)]))
+    s = detect.summarize(det.detect(_bloon_frames(["blue_09"])[0]))
+    assert s.get("blue") == 3 and sum(s.values()) <= 4
+    # the background itself has no bloons
+    assert det.detect(_bloon_frames(["empty_a_0"])[0]) == []
+
+
+def test_bloon_detector_live_standard():
+    """Live Monkey Meadow Standard frames with the map's stored background: a stream of
+    overlapping red + blue bloons in round 3 (one blob, split by per-pixel colour; the round
+    is 25 red + 5 blue) and a round-1 frame where a stray dark fragment used to count."""
+    import json
+    from bloons import detect
+    det = detect.BloonDetector(json.loads((Path(__file__).resolve().parents[1] / "bloons/data/maps/monkey_meadow.json").read_text()))
+    det.set_background_arrays(*detect.load_background("monkey_meadow"))
+    r3, r1 = _bloon_frames(["live_r3_198", "live_r1_072"])
+    assert detect.summarize(det.detect(r3)) == {"red": 15, "blue": 4}
+    assert detect.summarize(det.detect(r1)) == {"red": 10}
+
+
+def test_bloon_counting_rules():
+    from bloons import detect
+    assert detect.blob_count(5000, 4900) == 1 and detect.blob_count(7500, 4900) == 1
+    assert detect.blob_count(9800, 4900) == 2 and detect.blob_count(15000, 4900) == 3
+    det = detect.BloonDetector.__new__(detect.BloonDetector)
+    det.single, det.unit = {"yellow": 6848, "white": 2144}, (0.0027, 0.005)
+    # a fragment next to a partial blob of the same bloon merges; a lone small bloon stays
+    raw = [[0.358, 0.178, "yellow", 2500.0, 0.7, None], [0.357, 0.22, "yellow", 1170.0, 1.5, None],
+           [0.60, 0.50, "white", 2100.0, 0.2, None]]
+    out = det._merge_fragments(raw)
+    assert len(out) == 2 and sorted(round(b[3]) for b in out) == [2100, 3670]
+    # two whole bloons side by side don't merge
+    assert len(det._merge_fragments([[0.3, 0.2, "yellow", 6800.0, 0.3, None], [0.31, 0.2, "yellow", 6900.0, 0.3, None]])) == 2
+
+
+def test_harness_observe_bloons(tmp_path):
+    """observe(): the map's stored background (data/maps/monkey_meadow.bg.png) is loaded;
+    idle Standard frames give bloons == [] without detecting (pre-round track markers);
+    during a round the detector runs; our towers are left out of the band."""
+    from bloons.state import Screen
+    g, h = _round_harness(tmp_path)
+    assert h.detector is not None and h.detector.bg is not None
+    frames = {"cur": _bloon_frames(["red_04"])[0]}
+
+    class F:
+        def content_bgr(self):
+            return frames["cur"]
+    g.grab = lambda: F()
+    seq = []
+    h.read_screen = lambda frame: seq.pop(0) if seq else Screen("game", "idle")
+    assert h.observe().bloons == []                          # idle: not even looked at
+    seq[:] = [Screen("game", "ff_off")] * 3
+    h.observe()
+    s = h.observe()
+    assert s.round_active and [b.kind for b in s.bloons] == ["red"] * 3
+    b0 = s.bloons[0]                                         # a tower on top of one bloon hides it
+    h.register("dart_monkey", (b0.x, b0.y - 0.02), 170)
+    seq[:] = [Screen("game", "ff_off")]
+    assert len(h.observe().bloons) == 2
+    seq[:] = [Screen("pause")]
+    assert h.observe().bloons is None                        # off the game screen

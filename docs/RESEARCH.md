@@ -271,3 +271,37 @@ Rule: once a key is confirmed, the harness uses it, otherwise it clicks the UI c
 - 2026-11-05 — **REPL live run (step 4.10)**, `tools/play.py --hero benjamin --mode sandbox`, Monkey Meadow Easy Sandbox, two scripted sessions piped into the REPL. Worked: `new` (from the difficulty screen), place Dart / Mortar / Heli / Ace / Benjamin, Dart to 2-1-0, targeting Strong, Mortar target point, Heli patrol + lock in place, Ace figure eight then circle, hero to level 3, sandbox `go`, FF on/off, Biohack from the bar once its 60 s estimate ran out (refused as 'cooldown' before), sell a tower and the hero (70 % refunds), `restart` ($9,999,999 again, registry cleared). In Sandbox the HUD gives **money only**: lives and round read as None.
 - 2026-11-05 — **observe() live (step 5.1)**, Monkey Meadow Easy **Standard** (Dom allowed overwriting the session-036 junk save; the game was left restarted at round 1). Dom's **Auto Start is on** (read with `set_auto_start(None)`, nothing changed). 2 Darts, Space, 40 observes at ~1.7 s: `round_ended` fired exactly once for each of rounds 1–3 (when the HUD round went up), `rounds_done` went 0 → 3, and `round_composition` for round 4 was {red 35, blue 18}, matching rounds.json. Masks lost 54 land_r6 cells for 2 Darts. observe() takes ~0.13 s for the masks the first time after a placement (cached otherwise), plus one grab + template pass + HUD OCR.
   - **In Sandbox the play button always shows FF** (rounds come from the bloon panel), so `RoundTracker` reads every Sandbox frame as round active. observe() ignores the button's round state in Sandbox (`round_active` stays the harness's own flag, no `round_ended`, no composition).
+- 2026-11-05 — **Bloon detector (step 5.2)**, Monkey Meadow, `bloons/detect.py`.
+  - **Sandbox bloon panel:** below Set round / Spacing / Count there's one button per bloon type, in a 3-column grid at content x 0.8675 / 0.905 / 0.9425 (2× frames):
+    - y 0.298: red (right column only; the two dashed slots are something else)
+    - y 0.367: blue / green / yellow
+    - y 0.436: pink / white / black
+    - y 0.506: purple / lead / zebra
+    - y 0.575: rainbow / ceramic / MOAB
+    - y 0.644: BFB / ZOMG / DDT
+    - y 0.713: BAD
+    - Top row (y 0.224): camo / regrow / fortified toggles.
+    - A click sends `count` bloons of that type at once, without changing the round.
+  - **Bloon sizes at 2× (blob px):**
+    - red ~4,900, blue ~5,570, green ~6,100, yellow ~6,850, pink ~7,600, purple ~6,700, lead ~6,800, zebra ~5,900, rainbow ~7,500, ceramic ~7,650 (each ~85–100 px tall);
+    - **black ~2,670 and white ~2,140 are much smaller.**
+    - Falling leaves are < 600 px.
+  - **Things on Meadow's track that aren't bloons:**
+    - swaying grass tufts on the path edges (jitter up to 165 per channel);
+    - drifting leaves;
+    - **Halloween bats** (a flock flies over the track now and then; dark purple; a 'bat' class);
+    - **in Standard before round 1, animated entrance arrows and exit hearts on the track.** They vanish when the round starts, so a background grabbed then reads as bloons afterwards.
+    - Sandbox has no markers, so a map's empty-track background is stored data built from Sandbox (`tools/bloon_bg.py`).
+  - **Method:**
+    - The frame is diffed against the background inside the path band. The band is the polyline shifted up by sprite_dy, ±9 units.
+    - The per-pixel threshold is max(30, background jitter + 25), so a bloon over a grass tuft still shows.
+    - Close / open, then blobs ≥ 1,000 px at 2×.
+    - Each blob is classified by nearest centroid on an HSV feature vector.
+    - A cut bloon's fragments are merged, and leftovers under 0.6 of a bloon are dropped.
+    - Big or ambiguous blobs are split by a per-pixel hue × saturation model (merged streams of red + blue).
+  - **Accuracy:**
+    - Per blob, 99.5 % on held-out Sandbox frames.
+    - Per frame (all 3 bloons of a batch exactly right), 152 / 156 = 97 %; the misses are bloons entering or leaving and lead/white fragments.
+    - **Live Standard, no towers:** the peak on screen matched the composition exactly for round 1 (20 red), round 2 (35 red) and round 3 (25 red + 5 blue).
+  - `observe()` with detection takes ~0.18 s.
+  - Not done yet: a Standard run through round 4 (the window was parked mid-run), towers popping bloons (children, projectiles over the track), and the other 3 maps.
