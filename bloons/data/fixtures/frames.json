@@ -22,6 +22,9 @@
   "popup_restart_confirm":    {"screen": "restart_confirm", "present": ["restart_confirm"], "ignore": ["btn_play", "btn_ff", "defeat_title", "defeat_buttons"], "button": null},
   "popup_collection_event":   {"screen": "collection_event", "present": ["collection_event", "collect_button"], "button": null},
   "menu_map_select_beginner": {"screen": "map_select", "present": ["menu_map_select"], "button": null},
-  "menu_mode_select_easy":    {"screen": "mode_select", "present": ["menu_mode_standard"], "button": null}
+  "menu_mode_select_easy":    {"screen": "mode_select", "present": ["menu_mode_standard"], "button": null},
+  "menu_home":                {"screen": "home", "present": ["menu_home"], "button": null, "redact": [[0.0, 0.0, 0.3, 0.13]]},
+  "menu_difficulty":          {"screen": "difficulty_select", "present": ["menu_difficulty"], "button": null, "redact": [[0.86, 0.0, 1.0, 0.66]]},
+  "popup_overwrite_save":     {"screen": "overwrite_save", "present": ["overwrite_save"], "button": null}
  }
 }

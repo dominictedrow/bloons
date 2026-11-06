@@ -17,12 +17,15 @@ from bloons.vision import Templates, to_work
 # (kind, templates that must all match), highest priority first.
 SCREENS = (
     ("restart_confirm", ("restart_confirm",)),
+    ("overwrite_save", ("overwrite_save",)),
     ("victory", ("victory_banner",)),
     ("defeat", ("defeat_title",)),
     ("collection_event", ("collection_event",)),
     ("pause", ("pause_title",)),
     ("map_select", ("menu_map_select",)),
     ("mode_select", ("menu_mode_standard",)),
+    ("difficulty_select", ("menu_difficulty",)),
+    ("home", ("menu_home",)),
 )
 OUTCOMES = {"victory": "win", "defeat": "loss"}
 

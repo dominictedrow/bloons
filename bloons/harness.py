@@ -93,12 +93,7 @@ class BloonsHarness:
         self.account = _load("account.json") if account else None
         if hero is not None and hero not in self.heroes:
             raise KeyError(hero)
-        self.map = _load(f"maps/{map_name}.json")
-        self.unit = unit_norm(self.map)
-        self.keepout = PathKeepout.from_json(self.map["path"], self.unit) if "path" in self.map else None
-        self.memory = SpotMemory.load(spots_path or DATA / "maps" / f"{map_name}.spots.json")
-        if not self.memory.meta:
-            self.memory.meta = {"map": map_name, "game_version": self.map["_meta"]["game_version"]}
+        self._set_map(map_name, spots_path)
         self.hud = HudFilter()
         self.tint = tint_at       # (base, held, x, y) -> 'ok' | 'blocked' | 'none'; tests swap it
         self.read_panel = _read_panel   # content frame -> 'left' | 'right' | None; tests swap it
@@ -108,10 +103,21 @@ class BloonsHarness:
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
         self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
+        self.read_map_names = self._ocr_map_names   # map select page -> 6 thumbnail names
         self.prompt_actions = {k: v for k, v in self.ui["prompts"].items()
                                if not k.startswith("_") and k not in ("max_steps", "after_click_s")}
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
         self.new_episode()
+
+    def _set_map(self, map_name, spots_path=None):
+        """Load a map's data: scale, path keep-out and learned-spots memory."""
+        self.map_name = map_name
+        self.map = _load(f"maps/{map_name}.json")
+        self.unit = unit_norm(self.map)
+        self.keepout = PathKeepout.from_json(self.map["path"], self.unit) if "path" in self.map else None
+        self.memory = SpotMemory.load(spots_path or DATA / "maps" / f"{map_name}.spots.json")
+        if not self.memory.meta:
+            self.memory.meta = {"map": map_name, "game_version": self.map["_meta"]["game_version"]}
 
     # --- episode state ----------------------------------------------------------------------
     def new_episode(self):
@@ -806,3 +812,197 @@ class BloonsHarness:
             handled.append(kind)
             self.sleep(cfg["after_click_s"])
         return handled
+
+    # --- 4.9 games: new / restart / home ----------------------------------------------------
+    MENUS = ("map_select", "difficulty_select", "mode_select")
+
+    def screen_kind(self):
+        """The current screen kind; None if the window can't be captured (then try to find
+        it again: loading a map can drop it for a moment)."""
+        kind = self.read_kind(self.content())
+        if kind is None and hasattr(self.game, "reattach"):
+            self.game.reattach(timeout=1.0)
+        return kind
+
+    def _wait_kind(self, kinds, timeout):
+        """Poll until the screen is one of `kinds` -> that kind, or None after `timeout` s."""
+        deadline = self.clock() + timeout
+        while True:
+            kind = self.screen_kind()
+            if kind in kinds:
+                return kind
+            if self.clock() >= deadline:
+                return None
+            self.sleep(0.3)
+
+    def _click_ui(self, ref, wait=None):
+        ok = self.game.click(*self._ui_point(ref))
+        self.sleep(self.ui["timing_s"]["menu"] if wait is None else wait)
+        return ok
+
+    def _open_pause(self):
+        if self.screen_kind() == "pause":
+            return True
+        self.game.click(*self.ui["buttons"]["settings"])
+        self.sleep(self.ui["timing_s"]["pause_open"])
+        return self._wait_kind(("pause",), 2.0) == "pause"
+
+    def go_home(self):
+        """Back to the home screen from a game (pause -> Home), a defeat screen (Home), or a
+        menu (back arrow). Victory isn't handled yet (what follows Next isn't mapped).
+        Forgets the episode once the game is left."""
+        t = self.ui["timing_s"]
+        for _ in range(6):
+            kind = self.screen_kind()
+            if kind == "home":
+                return ActionResult(True, "home")
+            if kind in ("game", "pause"):
+                if not self._open_pause():
+                    return ActionResult(False, "no_pause_menu")
+                self._click_ui("pause.home", wait=0)
+                self.new_episode()
+                if self._wait_kind(("home",), t["load_max"]):
+                    self.sleep(t["menu"])           # home animates in; early clicks are lost
+                    return ActionResult(True, "home")
+                return ActionResult(False, "not_home")
+            if kind == "defeat":
+                self._click_ui("menus.defeat_home", wait=0)
+                self.new_episode()
+                if self._wait_kind(("home",), t["load_max"]):
+                    self.sleep(t["menu"])           # home animates in; early clicks are lost
+                    return ActionResult(True, "home")
+                return ActionResult(False, "not_home")
+            if kind in ("restart_confirm", "collection_event"):
+                self.handle_prompts()
+            elif kind in self.MENUS:
+                self._click_ui("menus.back")
+            else:
+                return ActionResult(False, f"unknown_screen:{kind}")
+        return ActionResult(False, "not_home")
+
+    def _ocr_map_names(self):
+        ms = self.ui["map_select"]
+        f = self.game.grab()
+        if f is None:
+            return [""] * len(ms["slots"])
+        hx, hy = ms["name_half"]
+        return [self.game.ocr(f, [x - hx, y + ms["name_dy"] - hy, x + hx, y + ms["name_dy"] + hy])
+                for x, y in ms["slots"]]
+
+    def _stable_names(self):
+        """The 6 thumbnail names once the grid has stopped sliding (two equal reads)."""
+        names = self.read_map_names()
+        for _ in range(6):
+            self.sleep(0.3)
+            again = self.read_map_names()
+            if again == names and sum(1 for n in names if n.strip()) >= 2:   # blank mid-slide reads
+                break                                                        # can also be "equal"
+            names = again
+        return names
+
+    def _pick_map(self, map_name):
+        """On map select: click the map's thumbnail, found by its OCR'd name. The grid
+        reopens on the last map's page and paging wraps around every category, so the
+        current page comes from any known map in view (ui.json map_select.maps pages) and
+        the search flips toward the target's page, keeping its direction across pages with
+        no known map (forward to start)."""
+        ms = self.ui["map_select"]
+        norm = lambda t: "".join(c for c in t.upper() if c.isalpha())
+        known = {norm(k): v["page"] for k, v in ms["maps"].items()}
+        want = norm(map_name)
+        target, step = known.get(want), "next_page"
+        for _ in range(ms["cycle_pages"]):
+            for attempt in range(2):
+                names = [norm(n) for n in self._stable_names()]
+                for i, name in enumerate(names):
+                    if want and want in name:
+                        self.game.click(*ms["slots"][i])
+                        return ActionResult(True, "map", 0, map_name)
+                here = next((pg for k, pg in known.items() for n in names if k in n), None)
+                if here is None or here != target:
+                    break                           # on the target's own page: read once more
+            if target is not None and here is not None:   # else keep going the same way
+                step = "prev_page" if here > target else "next_page"
+            self.game.click(*ms[step])
+            self.sleep(1.0)
+        return ActionResult(False, "map_not_found")
+
+    def new_game(self, map_name=None, difficulty=None, mode=None, overwrite_save=False):
+        """Start a game: home -> Play -> map (found by name) -> difficulty -> mode, then the
+        Sandbox popup's OK. Defaults: the harness's current map / difficulty / mode. Sandbox
+        is locked on maps not beaten yet ('no_game' after the timeout). If that map and
+        difficulty has a saved game the game asks 'Overwrite save?': OK only with
+        `overwrite_save=True`, else Cancel and 'save_exists' (the save is the player's).
+        ok -> the harness is set up for the new map with a fresh episode."""
+        map_name = map_name or self.map_name
+        difficulty = difficulty or self.difficulty
+        mode = mode or self.mode
+        if not (DATA / "maps" / f"{map_name}.json").exists():
+            return ActionResult(False, "unknown_map")
+        if difficulty not in ("easy", "medium", "hard"):
+            return ActionResult(False, "unknown_difficulty")
+        if mode not in ("standard", "sandbox"):
+            return ActionResult(False, "unknown_mode")
+        t = self.ui["timing_s"]
+        r = self.go_home()
+        if not r:
+            return r
+        for _ in range(2):                          # a click while home is settling is lost
+            self._click_ui("menus.home_play", wait=0)
+            if self._wait_kind(("map_select",), 4.0):
+                break
+        else:
+            return ActionResult(False, "no_map_select")
+        self.sleep(t["menu"])                       # the grid slides in; early page clicks are lost
+        r = self._pick_map(map_name)
+        if not r:
+            return r
+        if not self._wait_kind(("difficulty_select",), 5.0):
+            return ActionResult(False, "no_difficulty_select")
+        self._click_ui(f"menus.difficulty_{difficulty}", wait=0)
+        if not self._wait_kind(("mode_select",), 5.0):
+            return ActionResult(False, "no_mode_select")
+        self._click_ui(f"menus.mode_{mode}", wait=0)
+        kind = self._wait_kind(("game", "overwrite_save"), t["load_max"])
+        if kind == "overwrite_save":
+            if not overwrite_save:
+                self._click_ui("menus.overwrite_save_cancel")
+                return ActionResult(False, "save_exists")
+            self._click_ui("menus.overwrite_save_ok", wait=0)
+            kind = self._wait_kind(("game",), t["load_max"])
+        if kind != "game":
+            return ActionResult(False, "no_game")
+        if mode == "sandbox":
+            self.sleep(1.0)
+            self._click_ui("menus.sandbox_popup_ok")   # harmless on the map if it isn't there
+        if map_name != self.map_name:
+            self._set_map(map_name)
+        self.difficulty, self.mode = difficulty, mode
+        self.new_episode()
+        self.refresh_hud()
+        return ActionResult(True, "new_game", 0, (map_name, difficulty, mode))
+
+    def restart(self):
+        """Restart the current game: pause (or the defeat screen) -> Restart -> confirm.
+        ok -> a fresh episode on the same map."""
+        t = self.ui["timing_s"]
+        kind = self.screen_kind()
+        if kind == "defeat":
+            self._click_ui("menus.defeat_restart", wait=0)
+        elif kind in ("game", "pause"):
+            if not self._open_pause():
+                return ActionResult(False, "no_pause_menu")
+            self._click_ui("pause.restart", wait=0)
+        elif kind != "restart_confirm":
+            return ActionResult(False, f"not_in_game:{kind}")
+        if not self._wait_kind(("restart_confirm",), 3.0):
+            return ActionResult(False, "no_confirm")
+        self._click_ui("menus.restart_confirm_restart", wait=0)
+        self.new_episode()
+        if not self._wait_kind(("game",), t["load_max"]):
+            return ActionResult(False, "no_game")
+        if self.mode == "sandbox":
+            self.sleep(1.0)
+            self._click_ui("menus.sandbox_popup_ok")
+        self.refresh_hud()
+        return ActionResult(True, "restarted")

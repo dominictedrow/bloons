@@ -1446,3 +1446,96 @@ def test_harness_handle_prompts(tmp_path):
     g.on_click = None
     screens[:] = ["pause"]
     assert len(h.handle_prompts()) == UI["prompts"]["max_steps"]
+
+
+# --- new game / restart / home (PLAN 4.9) ---------------------------------------------------
+def _menu_harness(tmp_path, start, save_exists=False):
+    """A harness on a scripted menu graph: clicks on known UI points move between screens."""
+    from bloons.harness import BloonsHarness
+    from bloons.ui import UI
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    now = [0.0]
+
+    def tick(s):
+        now[0] += s
+    h.sleep, h.clock = tick, lambda: now[0]
+    st = {"kind": start, "pages": 0, "slot": None, "diff": None, "mode": None}
+    P = lambda sec, k: tuple(round(v, 4) for v in UI[sec][k])
+    ms = UI["map_select"]
+
+    def on_click(game, x, y):
+        p, k = (round(x, 4), round(y, 4)), st["kind"]
+        if k == "game" and p == P("buttons", "settings"):
+            st["kind"] = "pause"
+        elif k == "pause" and p == P("pause", "home"):
+            st["kind"] = "home"
+        elif k == "pause" and p == P("pause", "restart"):
+            st["kind"] = "restart_confirm"
+        elif k == "restart_confirm" and p == P("menus", "restart_confirm_restart"):
+            st["kind"] = "game"
+        elif k == "home" and p == P("menus", "home_play"):
+            st["kind"], st["pages"] = "map_select", st.get("last_page", 3)   # reopens on the last map's page
+        elif k == "map_select" and p in [tuple(round(v, 4) for v in s) for s in ms["slots"]]:
+            st["slot"] = (st["pages"], [tuple(round(v, 4) for v in s) for s in ms["slots"]].index(p))
+            st["last_page"] = st["pages"]
+            st["kind"] = "difficulty_select"
+        elif k == "difficulty_select" and p == P("menus", "difficulty_hard"):
+            st["diff"], st["kind"] = "hard", "mode_select"
+        elif k == "difficulty_select" and p == P("menus", "difficulty_easy"):
+            st["diff"], st["kind"] = "easy", "mode_select"
+        elif k == "mode_select" and p in (P("menus", "mode_standard"), P("menus", "mode_sandbox")):
+            st["mode"] = "standard" if p == P("menus", "mode_standard") else "sandbox"
+            st["kind"] = "overwrite_save" if save_exists else "game"
+        elif k == "overwrite_save" and p == P("menus", "overwrite_save_cancel"):
+            st["kind"] = "mode_select"
+        elif k == "overwrite_save" and p == P("menus", "overwrite_save_ok"):
+            st["kind"] = "game"
+        elif k in ("map_select", "difficulty_select") and p == P("menus", "back"):
+            st["kind"] = {"map_select": "home", "difficulty_select": "map_select"}[k]
+    pages = [["MOnKeY MeADOW", "IN THE LOOP", "SKULLTWEAK", "THREE MINES 'ROUND", "SPA PITS", "TINKERTON"],
+             ["TREE STUMP", "TOWN CENTER", "A", "B", "C", "D"], ["E"] * 6, ["F"] * 6,
+             ["LOGS", "08 END OF THE ROAD", "", "", "", ""], ["LOST CREVASSE"] + ["G"] * 5]
+
+    def click2(game, x, y):
+        if st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == P("map_select", "category_beginner"):
+            st["pages"] = 1                                   # lands in Beginner, not always page 0
+        elif st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == tuple(round(v, 4) for v in ms["next_page"]):
+            st["pages"] = min(st["pages"] + 1, len(pages) - 1)
+        elif st["kind"] == "map_select" and (round(x, 4), round(y, 4)) == tuple(round(v, 4) for v in ms["prev_page"]):
+            st["pages"] = max(st["pages"] - 1, 0)
+        else:
+            on_click(game, x, y)
+    g.on_click = click2
+    h.read_kind = lambda frame: st["kind"]
+    h.read_map_names = lambda: pages[st["pages"]] if st["kind"] == "map_select" else [""] * 6
+    return g, h, st
+
+
+def test_harness_new_game(tmp_path):
+    g, h, st = _menu_harness(tmp_path, "game")
+    h.round_active = True
+    r = h.new_game("logs", "hard", "standard")
+    assert r and r.value == ("logs", "hard", "standard") and st["slot"] == (4, 0) and st["diff"] == "hard"
+    assert h.map_name == "logs" and h.map["_meta"] and h.difficulty == "hard" and not h.round_active
+    assert h.new_game("nowhere").reason == "unknown_map" and h.new_game(difficulty="impoppable").reason == "unknown_difficulty"
+    # from a half-finished menu path: back out to home first
+    g, h, st = _menu_harness(tmp_path, "difficulty_select")
+    assert h.new_game("monkey_meadow", "easy", "sandbox") and st["mode"] == "sandbox" and h.mode == "sandbox"
+
+
+def test_harness_new_game_save_exists(tmp_path):
+    g, h, st = _menu_harness(tmp_path, "home", save_exists=True)
+    assert h.new_game("tree_stump", "easy", "standard").reason == "save_exists" and st["kind"] == "mode_select"
+    assert h.map_name == "monkey_meadow"                    # unchanged on failure
+    g, h, st = _menu_harness(tmp_path, "home", save_exists=True)
+    assert h.new_game("tree_stump", "easy", "standard", overwrite_save=True) and h.map_name == "tree_stump"
+
+
+def test_harness_restart_and_home(tmp_path):
+    g, h, st = _menu_harness(tmp_path, "game")
+    tid = h.register("dart_monkey", (0.3, 0.3), 170)
+    assert h.restart() and st["kind"] == "game" and tid not in h.registry
+    assert h.go_home() and st["kind"] == "home"
+    assert h.go_home().reason == "home"                      # already there
+    assert h.restart().reason == "not_in_game:home"

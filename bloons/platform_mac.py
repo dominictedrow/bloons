@@ -164,6 +164,23 @@ class Game:
         b = info[0]["kCGWindowBounds"]
         return (float(b["X"]), float(b["Y"]), float(b["Width"]), float(b["Height"]))
 
+    def reattach(self, timeout=10.0):
+        """Find the game's window again (loading a map can drop it from the window list for a
+        moment, and it may come back as a new window). True once found."""
+        deadline = time.monotonic() + timeout
+        while True:
+            w = find_window()
+            if w and w["kCGWindowBounds"]["Width"] > 600:
+                self.pid, self.wid, self.owner = int(w["kCGWindowOwnerPID"]), int(w["kCGWindowNumber"]), w["kCGWindowOwnerName"]
+                try:
+                    self.bounds = self._read_bounds()
+                    return True
+                except GameNotFound:
+                    pass
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.25)
+
     def refresh(self):
         """Re-read the window position (it can move between actions)."""
         self.bounds = self._read_bounds()
