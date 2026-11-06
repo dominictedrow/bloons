@@ -91,17 +91,17 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 
 ## Phase 3 — Map calibration (Monkey Meadow, Tree Stump, Town Center, Logs)
 - [x] 3.1 `ui.json`: shared UI coords (tower shop, upgrade panel buttons, sell, targeting, ability bar, settings/auto-start, FF) — *plus hero panel, pause, menus, defeat/restart buttons; `bloons/ui.py` accessors; shop scrolls (HID wheel), two scroll layouts*
-- [x] 3.2 `calibrate.py mask <map>`: grid sweep while holding a tower, reading the red tint → placeable masks per footprint (land/water) — *Monkey Meadow: 6 land classes (r6, r7, r8, r11, heli, ace), outline-then-ring classifier; no water on this map; `placement.placeable()` + `calibrate.py show`*
-- [ ] 3.3 `calibrate.py path <map>`: frame-difference bloons on round 1 → polyline, then a hand-correct click tool
-- [ ] 3.4 Obstacles: click points + IDs per map
-- [ ] 3.5 Calibrate all 4 maps and save `data/maps/<map>.json`
+- [x] 3.2 `calibrate.py mask <map>`: grid sweep while holding a tower, reading the red tint → placeable masks per footprint (land/water) — *Monkey Meadow: 6 land classes (r6, r7, r8, r11, heli, ace), outline-then-ring classifier; no water on this map; `placement.placeable()` + `calibrate.py show`. At ~50 min per map the sweep is now optional: it seeds the learned-spots memory (`calibrate.py spots`), and placement runs the layered check in `docs/PLACEMENT-PLAN.md`*
+- [x] 3.3 `calibrate.py path <map>`: frame-difference bloons on round 1 → polyline, then a hand-correct click tool — *new-red-pixel detection (cloud shadows/leaves/bat break plain differencing), lead-bloon centre line, sprite offset 4 units, half-width 0.25 fitted to the sweep; it's placement layer 1 (`placement.PathKeepout`) and explains 44–56 % of blocked cells. `path-edit` written, not yet used by hand. Monkey Meadow done*
+- [x] 3.4 Obstacles: click points + IDs per map — *none of the 4 maps has a removable obstacle (every candidate clicked, no panel); `obstacles: []` in each map file. 4.7 `remove_obstacle` has nothing to act on for now*
+- [x] 3.5 Calibrate all 4 maps and save `data/maps/<map>.json` — *each has `scale`, `path` (lead-bloon line; Tree Stump / Town Center / Logs from Standard round 1, since their sandbox is locked; half-width 0.5 default) and `obstacles`; map-select pages in `ui.json`. Placeable masks only on Meadow (the sweep is optional; memory + tint do the rest)*
 
 ## Phase 4 — Harness actions
-- [ ] 4.1 `BloonsHarness` skeleton, `ActionResult`, tower registry, hotkey-or-click helper
-- [ ] 4.2 `place_tower`, `place_hero`, `sell`
-- [ ] 4.3 `upgrade`, `buy_hero_level`
+- [ ] 4.1 `BloonsHarness` skeleton, `ActionResult`, tower registry, hotkey-or-click helper — *`ActionResult` (`bloons/result.py`) and the guards (`bloons/guards.py`: `can_*` + `available_actions`) exist; every action calls its guard first and returns the refusal without touching the game*
+- [ ] 4.2 `place_tower`, `place_hero`, `sell` — *guard (`can_buy_tower` / `can_place_hero` / `can_sell`) → `placement.can_place` → hold, one `held_tint` read; red = cancel + `record_placement(False)` + `ActionResult(False, "blocked")`; else click and confirm money dropped + hold ended (if not, record blocked)*
+- [ ] 4.3 `upgrade`, `buy_hero_level` — *guard first (`can_upgrade`: crosspath, tier ≤ 5, one tier 5 per path per type, money; `can_buy_hero_level`)*
 - [ ] 4.4 `start_round`, `set_fast_forward`, `set_auto_start`
-- [ ] 4.5 `use_ability`, `use_ability_of`, `place_ability_target`
+- [ ] 4.5 `use_ability`, `use_ability_of`, `place_ability_target` — *guard first (`can_use_ability`: ready flag, round-only abilities)*
 - [ ] 4.6 `set_targeting`, `set_target_point`, `set_flight_path`, `set_patrol_points`
 - [ ] 4.7 `remove_obstacle`
 - [ ] 4.8 `handle_prompts` (template → default click, overridable)
@@ -111,7 +111,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 ## Phase 5 — Full observation
 - [ ] 5.1 `GameState` dataclass + `observe()` (HUD, round state, outcome, registry, masks, path)
 - [ ] 5.2 Bloon detector (HSV classes first; small YOLO only if HSV falls short) + `round_composition`
-- [ ] 5.3 `upgrade_options` (table + rules + panel OCR verification)
+- [ ] 5.3 `upgrade_options` (table + rules + panel OCR verification) — *table + rules part = `guards.can_upgrade` / `upgrade_cost`; add the panel OCR check*
 - [ ] 5.4 Ability bar reading (ready + cooldown fraction)
 - [ ] 5.5 Range: table value + circle-measure verification
 - [ ] 5.6 `GameState.to_vector()` + grid image

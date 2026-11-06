@@ -53,7 +53,11 @@
    0.877,
    0.94
   ],
-  "_notes": "powers opens the powers list in a game; in Sandbox the same button toggles the bloon-sending panel and the tower shop. play_ff = Space (confirmed)."
+  "_notes": "powers opens the powers list in a game; in Sandbox the same button toggles the bloon-sending panel and the tower shop. play_ff = Space (confirmed). sandbox_send_round: the green play button next to 'Set round' on the Sandbox bloon panel; it sends that round. In Sandbox neither Space nor play_ff starts a round (2026-11-05).",
+  "sandbox_send_round": [
+   0.937,
+   0.047
+  ]
  },
  "timing_s": {
   "after_tower_key": 0.5,
@@ -517,5 +521,60 @@
    0.5874,
    0.677
   ]
+ },
+ "map_select": {
+  "_notes": "Beginner map grid: 6 thumbnails per page (2 rows x 3), slots in reading order; page = next_page clicks from the first page (dots under the grid). Sandbox is locked on maps not yet beaten (Tree Stump): use Standard there. Measured 2026-11-05.",
+  "next_page": [
+   0.846,
+   0.398
+  ],
+  "prev_page": [
+   0.154,
+   0.398
+  ],
+  "slots": [
+   [
+    0.2875,
+    0.235
+   ],
+   [
+    0.5,
+    0.235
+   ],
+   [
+    0.7125,
+    0.235
+   ],
+   [
+    0.2875,
+    0.52
+   ],
+   [
+    0.5,
+    0.52
+   ],
+   [
+    0.7125,
+    0.52
+   ]
+  ],
+  "maps": {
+   "monkey_meadow": {
+    "page": 0,
+    "slot": 0
+   },
+   "tree_stump": {
+    "page": 1,
+    "slot": 0
+   },
+   "town_center": {
+    "page": 1,
+    "slot": 1
+   },
+   "logs": {
+    "page": 4,
+    "slot": 0
+   }
+  }
  }
 }

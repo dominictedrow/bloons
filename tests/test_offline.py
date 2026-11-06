@@ -620,17 +620,318 @@ def test_map_masks():
     import json
     from bloons.placement import Mask
     maps = Path(__file__).resolve().parents[1] / "bloons/data/maps"
-    files = sorted(f for f in maps.glob("*.json") if not f.name.startswith("._")) if maps.exists() else []   # FAT32 sidecars
+    files = sorted(f for f in maps.glob("*.json")
+                   if not f.name.startswith("._") and not f.name.endswith(".spots.json")) if maps.exists() else []   # FAT32 sidecars
     for f in files:
         data = json.loads(f.read_text())
         assert data["_meta"]["game_version"], f.name
-        for cls, d in data["masks"].items():
+        for cls, d in data.get("masks", {}).items():      # maps without a sweep have none
             m = Mask.from_json(d)
             assert 0.05 < m.ok.mean() < 0.95, (f.name, cls)
     mm = maps / "monkey_meadow.json"
     if mm.exists():
         m = Mask.from_json(json.loads(mm.read_text())["masks"]["land_r6"])
         assert not m.placeable(0.30, 0.42) and m.placeable(0.36, 0.30)   # path / grass in the loop
+
+
+def test_beginner_maps():
+    """The 4 Phase-3 maps: scale, obstacles list, and a recorded path whose ends sit on the map
+    box edge (entry / exit) and that loads as a keep-out."""
+    import json
+    from bloons.placement import PathKeepout, unit_norm
+    maps = Path(__file__).resolve().parents[1] / "bloons/data/maps"
+    box = (0.03, 0.0, 0.84, 1.0)
+    for name in ("monkey_meadow", "tree_stump", "town_center", "logs"):
+        f = maps / f"{name}.json"
+        if not f.exists():
+            continue
+        data = json.loads(f.read_text())
+        assert data["_meta"]["game_version"] and isinstance(data["obstacles"], list), name
+        unit = unit_norm(data)
+        assert abs(unit[0] - UNIT[0]) < 1e-6, name                        # window scale, same on every map
+        poly = data["path"]["polyline"]
+        assert len(poly) >= 10, name
+        for x, y in (poly[0], poly[-1]):
+            assert min(abs(x - box[0]), abs(x - box[2]), abs(y - box[1]), abs(y - box[3])) < 1e-3, (name, x, y)
+        ko = PathKeepout.from_json(data["path"], unit)
+        x, y = poly[len(poly) // 2]
+        assert ko.blocked(x, y, 6) and ko.distance(x, y) <= 0, name                # on the line
+
+
+# --- layered placement + guards (docs/PLACEMENT-PLAN.md) -------------------------------------
+
+UNIT = (0.0027041, 0.0049875)        # Monkey Meadow scale: 1 game unit in normalized x / y
+
+
+def test_spot_memory(tmp_path):
+    from bloons.placement import SpotMemory
+    mem = SpotMemory(cell=(0.01, 0.02), path=tmp_path / "m.spots.json", meta={"game_version": "57.4"})
+    assert mem.lookup("land_r6", 0.5, 0.5) == "unknown"
+    mem.record("land_r6", 0.50, 0.50, False)
+    assert mem.lookup("land_r6", 0.50, 0.50) == "blocked"
+    assert mem.lookup("land_r6", 0.509, 0.50) == "blocked"          # inside the 1-cell disc
+    assert mem.lookup("land_r6", 0.50, 0.519) == "blocked"
+    assert mem.lookup("land_r6", 0.52, 0.50) == "unknown"            # 2 cells away
+    mem.record("land_r6", 0.505, 0.50, True)                          # exact ok reading overrides the disc
+    assert mem.lookup("land_r6", 0.505, 0.50) == "ok"
+    assert mem.lookup("land_r6", 0.50, 0.50) == "blocked"
+    assert not mem.record("land_r6", 0.505, 0.50, True)               # no change
+    # land radii nest: blocked r6 -> blocked r11; ok r11 -> ok r6
+    assert mem.lookup("land_r11", 0.50, 0.50) == "blocked"
+    mem.record("land_r11", 0.80, 0.30, True)
+    assert mem.lookup("land_r6", 0.80, 0.30) == "ok" and mem.lookup("land_r6", 0.803, 0.30) == "ok"
+    assert mem.lookup("land_r7", 0.30, 0.30) == "unknown" and mem.lookup("water_r6", 0.80, 0.30) == "unknown"
+    assert mem.lookup_any(["land_r6", "water_r6"], 0.80, 0.30) == "ok"
+    assert mem.lookup_any(["land_r6", "water_r6"], 0.50, 0.50) == "unknown"
+    mem.save()
+    back = SpotMemory.load(tmp_path / "m.spots.json")
+    assert back.meta["game_version"] == "57.4" and back.cell == (0.01, 0.02)
+    for x, y in ((0.5, 0.5), (0.509, 0.5), (0.505, 0.5), (0.8, 0.3), (0.3, 0.3)):
+        assert back.lookup("land_r6", x, y) == mem.lookup("land_r6", x, y)
+
+
+def test_spot_memory_from_masks():
+    import numpy as np
+    from bloons.placement import Grid, Mask, SpotMemory
+    g = Grid.over([0, 0, 0.1, 0.1], 0.01, 0.01)
+    ok = np.ones((g.ny, g.nx), bool)
+    ok[5, 5] = False
+    mem = SpotMemory.from_masks({"land_r6": Mask(g, ok)})
+    assert mem.lookup("land_r6", *g.centre(5, 5)) == "blocked"
+    assert mem.lookup("land_r6", *g.centre(6, 5)) == "ok"            # exact sweep reading next to it
+    x, y = g.centre(6, 5)
+    assert mem.lookup("land_r6", x - 0.002, y) == "blocked"          # off-grid, within the disc
+    assert mem.lookup("land_r6", *g.centre(2, 2)) == "ok"
+    assert mem.import_mask("land_r6", Mask(g, ~ok)) == 0              # existing readings are kept
+
+
+def test_seeded_spots_match_masks():
+    import json
+    from bloons.placement import Mask, SpotMemory
+    maps = Path(__file__).resolve().parents[1] / "bloons/data/maps"
+    f = maps / "monkey_meadow.spots.json"
+    if not f.exists():
+        return
+    mem = SpotMemory.load(f)
+    assert mem.meta["game_version"]
+    m = Mask.from_json(json.loads((maps / "monkey_meadow.json").read_text())["masks"]["land_r6"])
+    for i, j in ((0, 0), (10, 20), (30, 22), (60, 40)):
+        x, y = m.grid.centre(i, j)
+        assert mem.lookup("land_r6", x, y) == ("ok" if m.ok[j, i] else "blocked")
+
+
+def test_path_keepout():
+    from bloons.placement import PathKeepout
+    ko = PathKeepout(UNIT, polyline=[(0.1, 0.5), (0.9, 0.5)], half_width=10)
+    y_at = lambda units: 0.5 + units * UNIT[1]                        # noqa: E731
+    assert ko.blocked(0.5, 0.5, 6)
+    assert ko.blocked(0.5, y_at(15.9), 6) and not ko.blocked(0.5, y_at(16.1), 6)
+    assert not ko.blocked(0.5, y_at(15), 4)
+    assert ko.blocked(0.1 - 15 * UNIT[0], 0.5, 6) and not ko.blocked(0.1 - 17 * UNIT[0], 0.5, 6)   # past the end
+    back = PathKeepout.from_json(ko.to_json(), UNIT)
+    assert back.blocked(0.5, y_at(15.9), 6) and not back.blocked(0.5, y_at(16.1), 6)
+
+
+def test_path_keepout_band():
+    import numpy as np
+    from bloons.placement import Grid, Mask, PathKeepout
+    g = Grid.over([0, 0, 1, 1], 0.01, 0.01844)
+    band = np.zeros((g.ny, g.nx), bool)
+    band[27, :] = True                                                # one row of track cells
+    ko = PathKeepout.from_json({"band": Mask(g, band).to_json()}, UNIT)
+    _, yc = g.centre(0, 27)
+    half = 0.5 * 0.01844 / UNIT[1]                                     # half a cell in units (~1.85)
+    assert ko.blocked(0.5, yc, 6)
+    assert ko.blocked(0.5, yc + (half + 5.9) * UNIT[1], 6) and not ko.blocked(0.5, yc + (half + 6.2) * UNIT[1], 6)
+
+
+def _place_ctx(**kw):
+    import json
+    from bloons.placement import PlaceContext
+    towers = json.loads((Path(__file__).resolve().parents[1] / "bloons/data/towers.json").read_text())["towers"]
+    return PlaceContext(towers=towers, unit=UNIT, **kw)
+
+
+def test_can_place_layers():
+    from bloons.placement import PathKeepout, Placed, SpotMemory, can_place, record_placement
+    mem = SpotMemory(cell=(0.01, 0.01844))
+    ko = PathKeepout(UNIT, polyline=[(0.1, 0.5), (0.8, 0.5)], half_width=8)
+    ctx = _place_ctx(keepout=ko, memory=mem, placed=[Placed("dart_monkey", (0.3, 0.2), tid=1)])
+    assert can_place("dart_monkey", 0.95, 0.2, ctx).reason == "off_map"
+    assert can_place("nope", 0.5, 0.2, ctx).reason == "no_footprint:nope"
+    r = can_place("dart_monkey", 0.3 + 11 * UNIT[0], 0.2, ctx)                 # r6 + r6 = 12 > 11
+    assert not r.ok and r.reason == "overlaps_tower:1"
+    assert can_place("dart_monkey", 0.3 + 12.5 * UNIT[0], 0.2, ctx).ok
+    assert can_place("dart_monkey", 0.5, 0.5 + 13 * UNIT[1], ctx).reason == "path"
+    r = can_place("dart_monkey", 0.5, 0.2, ctx)
+    assert r.ok and r.reason == "unknown"
+    # the tint says blocked -> remembered; the spot and its neighbours aren't tried again
+    assert record_placement(ctx, "dart_monkey", 0.5, 0.2, False, save=False)
+    assert can_place("dart_monkey", 0.5, 0.2, ctx).reason == "memory_blocked"
+    assert can_place("dart_monkey", 0.505, 0.2, ctx).reason == "memory_blocked"
+    assert can_place("super_monkey", 0.5, 0.2, ctx).reason == "memory_blocked"  # r11 >= r6
+    assert record_placement(ctx, "dart_monkey", 0.6, 0.2, True, save=False)
+    assert can_place("dart_monkey", 0.6, 0.2, ctx).reason == "known_ok"
+    # blocked next to our own tower: not saved (temporary)
+    assert not record_placement(ctx, "dart_monkey", 0.3 + 13 * UNIT[0], 0.2, False, save=False)
+    # Ice (land or water): blocked is stored for both classes, ok is not stored
+    assert record_placement(ctx, "ice_monkey", 0.7, 0.1, False, save=False)
+    assert mem.lookup("water_r6", 0.7, 0.1) == "blocked"
+    assert not record_placement(ctx, "ice_monkey", 0.7, 0.3, True, save=False)
+    # heroes: radius 7, land
+    assert can_place("quincy", 0.5, 0.2, _place_ctx(heroes={"quincy": {}})).ok
+
+
+def _guard_state(**kw):
+    import json
+    from bloons.guards import GuardState
+    root = Path(__file__).resolve().parents[1] / "bloons/data"
+    towers = json.loads((root / "towers.json").read_text())["towers"]
+    heroes = json.loads((root / "heroes.json").read_text())["heroes"]
+    acc = json.loads((root / "account.json").read_text())
+    return GuardState(money=kw.pop("money", 1000), difficulty="easy", towers=towers, heroes=heroes, account=acc, **kw)
+
+
+def test_guards_upgrade():
+    from bloons.guards import TowerRec, can_upgrade
+    reg = {1: TowerRec(1, "dart_monkey", (0.3, 0.3), (0, 0, 0), 170)}
+    s = _guard_state(money=119, registry=reg)
+    r = can_upgrade(1, 0, s)                                    # Sharp Shots $140 -> $120 on Easy
+    assert not r.ok and r.reason == "no_money" and r.cost == 120
+    s.money = 120
+    assert can_upgrade(1, 0, s).ok and can_upgrade(1, 0, s).cost == 120    # exact money is enough
+    assert can_upgrade(9, 0, s).reason == "no_tower"
+    s.money = 10 ** 6
+    reg[1].tiers = (2, 2, 0)
+    assert can_upgrade(1, 2, s).reason == "crosspath"           # third path
+    reg[1].tiers = (3, 2, 0)
+    assert can_upgrade(1, 1, s).reason == "crosspath"           # second path past 2
+    reg[1].tiers = (5, 0, 0)
+    assert can_upgrade(1, 0, s).reason == "max_tier"            # no tier 6
+    reg[2] = TowerRec(2, "dart_monkey", (0.5, 0.3), (4, 0, 0), 0)
+    assert can_upgrade(2, 0, s).reason == "tier5_taken"         # one 5-x-x Dart per game
+    reg[3] = TowerRec(3, "tack_shooter", (0.6, 0.3), (4, 0, 0), 0)
+    assert can_upgrade(3, 0, s).ok                              # other tower type is fine
+    assert can_upgrade(2, 1, s).ok
+
+
+def test_guards_misc():
+    from bloons.guards import Ability, HeroRec, TowerRec, can_buy_hero_level, can_buy_tower, can_place_hero, \
+        can_sell, can_start_round, can_use_ability
+    s = _guard_state(money=169)
+    assert can_buy_tower("dart_monkey", s).reason == "no_money"
+    s.money = 170
+    assert can_buy_tower("dart_monkey", s).cost == 170 and can_buy_tower("nope", s).reason == "unknown_tower"
+    s.locked.add("dart_monkey")
+    assert not can_buy_tower("dart_monkey", s).ok
+    s.money = 2000
+    assert can_buy_tower("spike_factory", s).cost == 700        # first-only MK discount ...
+    s.bought.add("spike_factory")
+    assert can_buy_tower("spike_factory", s).cost == 850        # ... gone for the second
+    assert can_place_hero(s).reason == "unknown_hero"
+    s.hero_choice = "benjamin"
+    assert can_place_hero(s).ok and can_place_hero(s).cost == 1020
+    assert can_buy_hero_level(s).reason == "no_hero"
+    s.hero = HeroRec("benjamin", (0.4, 0.4), 1, 0, 1020)
+    assert can_place_hero(s).reason == "hero_placed"
+    assert can_buy_hero_level(s).cost == 243                     # seen in game (2.5)
+    s.money = 242
+    assert can_buy_hero_level(s).reason == "no_money"
+    s.hero.level = 20
+    assert can_buy_hero_level(s).reason == "hero_max_level"
+    s.registry[1] = TowerRec(1, "dart_monkey", (0.3, 0.3), (0, 0, 0), 170)
+    assert can_sell(1, s).cost == -119 and can_sell(2, s).reason == "no_tower" and can_sell("hero", s).cost == -714
+    s.abilities = [Ability(0, "Supply Drop", True), Ability(1, "MOAB Barrage", False),
+                   Ability(2, "Overclock", True, between_rounds=False)]
+    assert can_use_ability(0, s).ok and can_use_ability(1, s).reason == "cooldown"
+    assert can_use_ability(2, s).reason == "round_only" and can_use_ability(5, s).reason == "no_ability"
+    s.round_active = True
+    assert can_use_ability(2, s).ok and can_start_round(s).reason == "round_active"
+
+
+def test_available_actions():
+    from bloons.guards import Ability, TowerRec, available_actions
+    s = _guard_state(money=200, registry={1: TowerRec(1, "dart_monkey", (0.3, 0.3), (0, 0, 0), 170)},
+                     hero_choice="benjamin", abilities=[Ability(0, "x", False)])
+    acts = available_actions(s)
+    kinds = {a["kind"] for a in acts if a["action"] == "buy_tower"}
+    assert kinds == {"dart_monkey", "glue_gunner", "skywarden"}           # $170, $190, $175 <= $200
+    assert {"action": "start_round", "cost": 0} in acts
+    ups = {(a["tid"], a["path"]): a["cost"] for a in acts if a["action"] == "upgrade"}
+    assert ups == {(1, 0): 120, (1, 1): 85, (1, 2): 75}
+    assert {"action": "sell", "tid": 1, "cost": -119} in acts
+    assert not any(a["action"] in ("place_hero", "use_ability", "buy_hero_level") for a in acts)
+    assert all(a["cost"] is None or a["cost"] <= s.money for a in acts)
+
+
+def test_path_recorder():
+    """Synthetic round 1: a square 'bloon' moves along an L-shaped track over a noisy map."""
+    import numpy as np
+    from bloons.pathmap import PathRecorder, keepout_agreement
+    from bloons.placement import Grid, Mask, PathKeepout
+    rng = np.random.default_rng(0)
+    h, w = 200, 300
+    bg = rng.integers(60, 120, (h, w, 3)).astype(np.uint8)
+    flicker = (slice(180, 190), slice(10, 20))                     # animated corner: ignored
+    empties = []
+    for k in range(4):
+        e = bg.copy()
+        e[flicker] = 255 if k % 2 else 0
+        empties.append(e)
+    rec = PathRecorder(empties, exclude=[(0.0, 0.0, 0.2, 0.1)], min_area=60)
+    track = [(x, 50) for x in range(20, 200, 3)] + [(200, y) for y in range(50, 170, 3)]
+    for t, (cx, cy) in enumerate(track):
+        f = bg.copy()
+        f[cy - 5:cy + 5, cx - 5:cx + 5] = (30, 30, 230)
+        lx = 280 - 4 * t % 260                                    # red 'leaf' drifting left: too small
+        f[140:145, lx:lx + 5] = (30, 30, 230)
+        f[5:15, 5:40] = 255                                       # HUD change: excluded
+        f[flicker] = 255 if t % 2 else 0
+        rec.feed(f, t * 0.05)
+    band = rec.band_px()
+    assert band[50, 100] and band[120, 200] and not band[150, 100] and not band[185, 15] and not band[10, 20]
+    assert rec.counts[140:145, :190].sum() == 0                    # the leaf never counted (the bloon crosses at x 200)
+    pts = rec.polyline(band, bins=40)
+    assert 2 <= len(pts) <= 6
+    assert pts[0][0] == 0.0 and abs(pts[0][1] - 50 / h) < 0.03                      # entry first, extended to the edge
+    assert abs(pts[-1][0] - 200 / w) < 0.03 and abs(pts[-1][1] - 168 / h) < 0.05      # exit last
+    assert any(abs(x - 200 / w) < 0.03 and abs(y - 50 / h) < 0.04 for x, y in pts)    # the corner
+    g = Grid.over([0, 0, 1, 1], 0.02, 0.03)
+    m = rec.band_mask(g, band)
+    assert m.placeable(100 / w, 50 / h) and not m.placeable(100 / w, 150 / h)
+    ko = PathKeepout(UNIT, band=m)
+    rep = keepout_agreement(ko, Mask(g, ~m.ok), 0.1)
+    assert rep["blocked_explained"] == 1.0 and rep["false_block_of_ok"] < 0.02
+
+
+
+def test_path_helpers():
+    import numpy as np
+    from bloons.pathmap import extend_to_box, fit_half_width, lead_path
+    from bloons.placement import Grid, Mask, PathKeepout
+    # the lead bloon leaves at the bottom edge, then the next bloon (far back) would become 'lead'
+    lead = [(t * 0.1, 0.1 + 0.01 * t, 0.5) for t in range(20)] + [(2.0 + 0.1 * t, 0.29, 0.5 + 0.03125 * t) for t in range(17)]
+    lead += [(4.0, 0.5, 0.3), (4.1, 0.51, 0.3)]
+    pts = lead_path(lead)
+    assert pts[-1] == (0.29, 1.0) and (0.5, 0.3) not in pts
+    lead2 = [(0.0, 0.1, 0.5), (0.1, 0.11, 0.5), (0.2, 0.6, 0.5), (0.3, 0.12, 0.5)]
+    assert lead_path(lead2) == [(0.1, 0.5), (0.11, 0.5), (0.12, 0.5)]   # one-frame jump dropped
+    ext = extend_to_box([(0.05, 0.4), (0.3, 0.4), (0.3, 0.9)], (0.0, 0.0, 1.0, 1.0), max_ext=0.08)
+    assert ext[0] == (0.0, 0.4) and ext[-1] == (0.3, 0.9)               # end: 0.1 to go > max_ext
+    assert extend_to_box([(0.05, 0.4), (0.3, 0.4), (0.3, 0.95)], (0, 0, 1, 1))[-1] == (0.3, 1.0)
+    # vectorized distances == scalar distance
+    ko = PathKeepout(UNIT, polyline=[(0.1, 0.2), (0.6, 0.2), (0.6, 0.8)], half_width=3)
+    xs, ys = np.random.default_rng(1).random((2, 50))
+    assert np.allclose(ko.distances(xs, ys), [ko.distance(x, y) for x, y in zip(xs, ys)])
+    # fit: a mask blocked within 10 units of a line. The nearest ok cell row is d_ok away, so the
+    # widest keep-out with no false block is d_ok - 6 (rounded down to the 0.25 step).
+    g = Grid.over([0, 0, 1, 1], 0.01, 0.01844)
+    line = [(0.0, 0.5), (1.0, 0.5)]
+    jj, ii = np.mgrid[0:g.ny, 0:g.nx]
+    d = PathKeepout(UNIT, polyline=line, half_width=0).distances(g.x0 + ii * g.dx, g.y0 + jj * g.dy).reshape(g.ny, g.nx)
+    hw, rep, _ = fit_half_width(line, UNIT, {"land_r6": Mask(g, d >= 10)}, max_false=0.0)
+    d_ok = d[d >= 10].min()
+    assert hw == np.floor((d_ok - 6) * 4) / 4 and rep["land_r6"]["false_block"] == 0
 
 
 if __name__ == "__main__":
