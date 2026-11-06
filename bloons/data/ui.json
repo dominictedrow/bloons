@@ -157,10 +157,10 @@
     0.115
    ],
    "targeting_label": [
-    0.7,
-    0.33,
-    0.79,
-    0.362
+    0.69,
+    0.322,
+    0.8,
+    0.376
    ],
    "targeting_prev": [
     0.673,
@@ -303,10 +303,10 @@
     0.115
    ],
    "targeting_label": [
-    0.0864,
-    0.33,
-    0.1764,
-    0.362
+    0.0764,
+    0.322,
+    0.1864,
+    0.376
    ],
    "targeting_prev": [
     0.0594,
@@ -599,5 +599,23 @@
   "ability": [
    "1"
   ]
+ },
+ "targeting": {
+  "_notes": "Targeting label = towers.json stats.targeting mode with '_' -> ' ', upper case, unless listed in 'labels'. Tab (hotkey targeting_next) cycles forward; upgrades can add modes, so set_targeting reads the label after each press. Point modes: after choosing the mode, its label is a green button at the same spot; clicking it closes the panel and shows a 'Click to set ...' banner; then 'points' map clicks, after which the panel reopens (2026-11-05, Mortar / Heli). targeting_label boxes made 0.02 wider / 0.022 taller so two-line labels (FOLLOW MOUSE, LOCK IN PLACE) OCR.",
+  "labels": {
+   "follow_touch": "FOLLOW MOUSE",
+   "figure_infinite": "FIGURE INFINITE",
+   "target_selected_point": "SET TARGET"
+  },
+  "point_modes": {
+   "target_selected_point": 1,
+   "lock_in_place": 1,
+   "patrol_points": 2
+  },
+  "point_mode_of": {
+   "mortar_monkey": "target_selected_point",
+   "heli_pilot": "lock_in_place"
+  },
+  "max_presses": 8
  }
 }

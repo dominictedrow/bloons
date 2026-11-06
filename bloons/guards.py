@@ -29,6 +29,7 @@ class TowerRec:
     xy: tuple
     tiers: tuple = (0, 0, 0)
     spent: int = 0
+    targeting: Optional[str] = None   # last mode set through the harness (None = game default)
 
 
 @dataclass

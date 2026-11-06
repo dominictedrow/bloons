@@ -107,6 +107,7 @@ class BloonsHarness:
         self.read_auto_start = _read_probe("auto_start_toggle")   # pause menu -> 'on' / 'off' / None
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
+        self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
         self.new_episode()
 
@@ -656,3 +657,125 @@ class BloonsHarness:
         if not clicked:
             return ActionResult(False, "not_front")
         return self._after_use(slot, self._ability_fired(slot, before), key)
+
+    # --- 4.6 targeting and target points ----------------------------------------------------
+    def _ocr_targeting(self, side):
+        f = self.game.grab()
+        return "" if f is None else self.game.ocr(f, ui.panel(side)["targeting_label"])
+
+    def targeting_label(self, mode):
+        """The panel text for a towers.json targeting mode ('lock_in_place' -> 'LOCK IN PLACE')."""
+        return self.ui["targeting"]["labels"].get(mode, mode.replace("_", " ").upper())
+
+    @staticmethod
+    def _same_text(a, b):
+        """OCR-tolerant label comparison (letters only, case-insensitive, ratio >= 0.8)."""
+        import difflib
+        norm = lambda t: "".join(c for c in t.upper() if c.isalpha())
+        a, b = norm(a), norm(b)
+        return bool(a) and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+    def _label_is(self, text, mode):
+        return self._same_text(text, self.targeting_label(mode))
+
+    def _choose_mode(self, tid, mode):
+        """Select `tid` and Tab through its targeting until the label reads `mode`. Leaves the
+        panel open. -> (ActionResult, side); side is None if no panel was opened."""
+        t = self.registry.get(tid)
+        if t is None:
+            return ActionResult(False, "no_tower"), None
+        r = self.select_tower(tid)
+        if not r:
+            return r, None
+        side = self.panel_side()
+        if side is None:
+            return ActionResult(False, "no_panel"), None
+        first = None
+        for _ in range(self.ui["targeting"]["max_presses"] + 1):
+            text = ""
+            for _ in range(3):
+                text = self.read_targeting(side)
+                if text:
+                    break
+                self.sleep(0.15)
+            if not text:
+                return ActionResult(False, "no_targeting"), side
+            if self._label_is(text, mode):
+                return ActionResult(True, "chosen", 0, mode), side
+            if first is None:
+                first = text
+            elif self._same_text(text, first):
+                break                               # back at the first label: mode not offered
+            r = self.press("targeting_next", xy=tuple(ui.panel(side)["targeting_next"]), wait=0.35)
+            if not r:
+                return r, side
+        return ActionResult(False, "no_such_mode"), side
+
+    def set_targeting(self, tid, mode):
+        """Set tower `tid`'s targeting to a towers.json mode ('first', 'strong', 'circle', ...):
+        Tab until the panel's label reads it (upgrades can add modes, so the label is read
+        each time, not counted). ok -> value is the mode."""
+        r, side = self._choose_mode(tid, mode)
+        if side is not None:
+            self.close_panel(side)
+        if not r:
+            return r
+        self.registry[tid].targeting = mode
+        return ActionResult(True, "set", 0, mode)
+
+    def set_flight_path(self, tid, pattern):
+        """Monkey Ace flight pattern ('circle', 'figure_infinite', 'figure_eight'): a
+        targeting mode on the Ace's panel."""
+        return self.set_targeting(tid, pattern)
+
+    def _set_points(self, tid, mode, points):
+        """Choose a point mode, click its button (the label spot), click `points` on the map,
+        and confirm by the panel reopening on the same side."""
+        need = self.ui["targeting"]["point_modes"].get(mode)
+        if need is None:
+            return ActionResult(False, "not_point_mode")
+        if len(points) != need:
+            return ActionResult(False, "bad_points")
+        r, side = self._choose_mode(tid, mode)
+        if not r:
+            if side is not None:
+                self.close_panel(side)
+            return r
+        x0, y0, x1, y1 = ui.panel(side)["targeting_label"]
+        if not self.game.click((x0 + x1) / 2, (y0 + y1) / 2):
+            return ActionResult(False, "not_front")
+        self.sleep(self.ui["timing_s"]["after_click"])
+        if self.panel_side(tries=2) is not None:      # the button should close the panel
+            self.close_panel(side)
+            return ActionResult(False, "no_point_button")
+        for x, y in points:
+            if not self.game.click(x, y):
+                return ActionResult(False, "not_front")
+            self.sleep(self.ui["timing_s"]["after_click"])
+        back = self.panel_side()
+        if back is None:
+            self.cancel_hold()                         # leave point mode (cancel button)
+            return ActionResult(False, "unconfirmed")
+        self.close_panel(back)
+        self.registry[tid].targeting = mode
+        return ActionResult(True, "set", 0, [tuple(p) for p in points])
+
+    def set_target_point(self, tid, x, y):
+        """Point the tower at (x, y): Mortar's Set Target, Heli's Lock in Place (ui.json
+        targeting.point_mode_of)."""
+        t = self.registry.get(tid)
+        if t is None:
+            return ActionResult(False, "no_tower")
+        mode = self.ui["targeting"]["point_mode_of"].get(t.kind)
+        if mode is None:
+            return ActionResult(False, "no_target_point")
+        return self._set_points(tid, mode, [(x, y)])
+
+    def set_patrol_points(self, tid, points):
+        """Heli Pilot patrol between two points [(x, y), (x, y)]."""
+        t = self.registry.get(tid)
+        if t is None:
+            return ActionResult(False, "no_tower")
+        if t.kind != "heli_pilot":
+            return ActionResult(False, "no_patrol")
+        return self._set_points(tid, "patrol_points", list(points))

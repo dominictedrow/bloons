@@ -102,7 +102,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 4.3 `upgrade`, `buy_hero_level` — *done: select → panel side (`state.read_screen`) → path key / level-up button → close the panel → HUD money confirms. Live in Meadow Sandbox: 4 upgrades to 3-0-1 + 4 hero levels, net money exactly as priced. Plan was: guard first (`can_upgrade`: crosspath, tier ≤ 5, one tier 5 per path per type, money; `can_buy_hero_level`)*
 - [x] 4.4 `start_round`, `set_fast_forward`, `set_auto_start`
 - [x] 4.5 `use_ability`, `use_ability_of`, `place_ability_target` — *guard first (`can_use_ability`: ready flag, round-only abilities)*
-- [ ] 4.6 `set_targeting`, `set_target_point`, `set_flight_path`, `set_patrol_points`
+- [x] 4.6 `set_targeting`, `set_target_point`, `set_flight_path`, `set_patrol_points`
 - [ ] 4.7 `remove_obstacle`
 - [ ] 4.8 `handle_prompts` (template → default click, overridable)
 - [ ] 4.9 `new_game`, `restart`, `go_home`

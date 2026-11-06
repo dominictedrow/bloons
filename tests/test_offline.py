@@ -1338,3 +1338,86 @@ def test_harness_use_ability_of(tmp_path):
     assert g.calls[-3:] == [("click", 0.7, 0.3), ("click", *[round(v, 4) for v in left["ability_icon"]]),
                             ("click", *[round(v, 4) for v in left["close"]])]
     assert h.use_ability_of(a).reason == "cooldown"
+
+
+# --- targeting and target points (PLAN 4.6) -------------------------------------------------
+def _targeting_harness(tmp_path, kind, modes, xy=(0.7, 0.45)):
+    """A harness with one `kind` tower whose panel (left) cycles `modes` on Tab."""
+    from bloons.harness import BloonsHarness
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    st = {"i": 0, "panel": None, "clicks_left": 0}
+    tid = h.register(kind, xy, 0)
+    h.read_targeting = lambda side: modes[st["i"]] if st["panel"] else ""
+    h.read_panel = lambda frame: st["panel"]
+
+    def on_key(game, k):
+        if k == "tab" and st["panel"]:
+            st["i"] = (st["i"] + 1) % len(modes)
+    g.on_key = on_key
+    return g, h, tid, st
+
+
+def test_harness_set_targeting(tmp_path):
+    from bloons.ui import panel
+    g, h, tid, st = _targeting_harness(tmp_path, "dart_monkey", ["FIRST", "LAST", "CLOSE", "STRONG"])
+    close = ("click", *[round(v, 4) for v in panel("left")["close"]])
+
+    def on_click(game, x, y):
+        p = (round(x, 4), round(y, 4))
+        st["panel"] = None if ("click", *p) == close else ("left" if p == (0.7, 0.45) else st["panel"])
+    g.on_click = on_click
+    r = h.set_targeting(tid, "strong")
+    assert r and r.value == "strong" and h.registry[tid].targeting == "strong"
+    assert [c for c in g.calls if c[0] == "key"] == [("key", "tab")] * 3 and g.calls[-1] == close
+    g.calls.clear()
+    assert h.set_targeting(tid, "strong") and not [c for c in g.calls if c[0] == "key"]   # already set
+    # a mode the tower doesn't offer: one full cycle, then refuse
+    g.calls.clear()
+    assert h.set_targeting(tid, "patrol_points").reason == "no_such_mode"
+    assert len([c for c in g.calls if c[0] == "key"]) == 4 and g.calls[-1] == close
+    # OCR-tolerant labels: 'FOLLOW MOUSe' is follow_touch
+    g2, h2, t2, st2 = _targeting_harness(tmp_path, "heli_pilot", ["FOLLOW MOUSe", "LOCK IN PLACE", "PATROL POINTS"])
+    st2["panel"] = "left"
+    h2.close_panel = lambda side: None
+    assert h2.set_targeting(t2, "follow_touch") and h2.set_flight_path(t2, "lock_in_place")
+    assert h.set_targeting(99, "first").reason == "no_tower"
+
+
+def test_harness_target_points(tmp_path):
+    from bloons.ui import panel
+    g, h, tid, st = _targeting_harness(tmp_path, "heli_pilot", ["FOLLOW MOUSE", "LOCK IN PLACE", "PATROL POINTS"])
+    left = panel("left")
+    close = (round(left["close"][0], 4), round(left["close"][1], 4))
+    lb = left["targeting_label"]
+    button = (round((lb[0] + lb[2]) / 2, 4), round((lb[1] + lb[3]) / 2, 4))
+
+    def on_click(game, x, y):
+        p = (round(x, 4), round(y, 4))
+        if p == close:
+            st["panel"] = None
+        elif p == button and st["panel"]:
+            st["panel"], st["clicks_left"] = None, (1 if st["i"] == 1 else 2)
+        elif st["clicks_left"]:
+            st["clicks_left"] -= 1
+            if not st["clicks_left"]:
+                st["panel"] = "left"
+        elif p == (0.7, 0.45):
+            st["panel"] = "left"
+    g.on_click = on_click
+    r = h.set_target_point(tid, 0.45, 0.6)
+    assert r and r.value == [(0.45, 0.6)] and h.registry[tid].targeting == "lock_in_place"
+    assert ("click", *button) in g.calls and g.calls[-1] == ("click", *close) and st["panel"] is None
+    r = h.set_patrol_points(tid, [(0.3, 0.15), (0.6, 0.85)])
+    assert r and h.registry[tid].targeting == "patrol_points"
+    assert h.set_patrol_points(tid, [(0.3, 0.15)]).reason == "bad_points"
+    # the panel never comes back: cancel point mode, unconfirmed
+    g.calls.clear()
+    st["i"], st["clicks_left"] = 1, 0
+    g.on_click = lambda game, x, y: st.update(panel="left") if (round(x, 4), round(y, 4)) == (0.7, 0.45) else (
+        st.update(panel=None) if (round(x, 4), round(y, 4)) in (button, close) else None)
+    assert h.set_target_point(tid, 0.45, 0.6).reason == "unconfirmed"
+    # towers without a point mode
+    dart = h.register("dart_monkey", (0.2, 0.2), 0)
+    assert h.set_target_point(dart, 0.5, 0.5).reason == "no_target_point"
+    assert h.set_patrol_points(dart, [(0, 0), (1, 1)]).reason == "no_patrol"
