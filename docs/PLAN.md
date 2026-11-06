@@ -106,7 +106,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [ ] 4.7 `remove_obstacle`
 - [x] 4.8 `handle_prompts` (template → default click, overridable) — *4.7 skipped for now: no beginner map has an obstacle*
 - [x] 4.9 `new_game`, `restart`, `go_home`
-- [ ] 4.10 `tools/play.py` REPL. Drive every action by hand on Monkey Meadow
+- [x] 4.10 `tools/play.py` REPL. Drive every action by hand on Monkey Meadow — *done in Sandbox (handoff 038); `observe()` from the Phase 4 gate is 5.1, add it to the REPL then*
 
 ## Phase 5 — Full observation
 - [ ] 5.1 `GameState` dataclass + `observe()` (HUD, round state, outcome, registry, masks, path)

@@ -1560,3 +1560,34 @@ def test_harness_restart_and_home(tmp_path):
     assert h.go_home() and st["kind"] == "home"
     assert h.go_home().reason == "home"                      # already there
     assert h.restart().reason == "not_in_game:home"
+
+
+def test_play_repl(tmp_path):
+    """tools/play.py: commands reach the harness; bad input prints usage and doesn't stop the loop."""
+    import io
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import play
+    import pytest
+    from bloons.hud import Hud
+    assert play.resolve("dart", ["dart_monkey", "dartling_gunner"]) == "dart_monkey"   # whole word wins
+    assert play.resolve("ace", ["monkey_ace", "dart_monkey"]) == "monkey_ace"
+    with pytest.raises(play.UsageError):
+        play.resolve("monkey", ["monkey_ace", "monkey_sub"])
+    g, h = _round_harness(tmp_path)
+    h.tint = lambda base, held, x, y: "ok"
+
+    def spend(game, x, y):
+        if len(game.calls) > 1 and game.calls[-2] == ("move", x, y) and game.hud.money >= 170:
+            game.hud = Hud(200, game.hud.money - 170, 1, 40)
+    g.on_click = spend
+    out = io.StringIO()
+    p = play.Play(h, out=out)
+    for line in ("hud", "place dart .1 .5", "place dart", "place monkey .1 .5", "up 1 sideways",
+                 "state", "py h.money", "nonsense", "prompts", "forget", "state"):
+        assert not p.onecmd(line)
+    text = out.getvalue()
+    assert "$650" in text and "ok  placed cost=170 value=1\n     $480" in text
+    assert "dart_monkey" in text and "usage: place <tower> <x> <y>" in text
+    assert "could mean" in text and "path is top" in text and "unknown command 'nonsense'" in text
+    assert "(no towers placed through the harness)" in text and not h.registry and "handled: " in text
+    assert p.onecmd("quit")

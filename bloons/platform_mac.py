@@ -26,7 +26,7 @@ import Quartz as Q
 import Vision
 from AppKit import NSDate, NSRunLoop, NSRunningApplication, NSWorkspace
 
-from bloons.coords import box_to_pixels, to_screen
+from bloons.coords import box_to_pixels, to_norm, to_screen
 from bloons.hud import parse_hud
 
 UI = json.loads((Path(__file__).parent / "data" / "ui.json").read_text())
@@ -282,6 +282,12 @@ class Game:
 
     def _mouse(self, kind, pt):
         Q.CGEventPost(Q.kCGHIDEventTap, Q.CGEventCreateMouseEvent(None, kind, pt, Q.kCGMouseButtonLeft))
+
+    def cursor(self):
+        """The real mouse cursor as normalized content coords (outside 0-1 = off the content)."""
+        self.refresh()
+        loc = Q.CGEventGetLocation(Q.CGEventCreate(None))
+        return to_norm(loc.x, loc.y, self.bounds, self.title_bar_pt)
 
     def move(self, nx, ny):
         if not self.ensure_front():
