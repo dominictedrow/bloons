@@ -23,9 +23,10 @@ from pathlib import Path
 
 from . import guards, ui
 from .hud import HudFilter
-from .placement import (PathKeepout, PlaceContext, Placed, SpotMemory, can_place, record_placement,
-                        tint_at, unit_norm)
+from .placement import (PathKeepout, PlaceContext, Placed, SpotMemory, can_place, load_masks, mask_classes,
+                        record_placement, shape_of, tint_at, unit_norm)
 from .result import ActionResult
+from .state import RoundTracker
 
 DATA = Path(__file__).parent / "data"
 SCROLL_LINES = 200        # past the shop's full length (~30 events x 5 lines, RESEARCH 3.1)
@@ -43,6 +44,11 @@ def _read_panel(frame):
 def _read_kind(frame):
     from .state import read_screen
     return None if frame is None else read_screen(frame).kind
+
+
+def _read_screen(frame):
+    from .state import Screen, read_screen
+    return Screen("unknown") if frame is None else read_screen(frame)
 
 
 def _read_button(frame):
@@ -98,6 +104,7 @@ class BloonsHarness:
         self.tint = tint_at       # (base, held, x, y) -> 'ok' | 'blocked' | 'none'; tests swap it
         self.read_panel = _read_panel   # content frame -> 'left' | 'right' | None; tests swap it
         self.read_kind = _read_kind     # content frame -> state.Screen kind ('game', 'pause', ...)
+        self.read_screen = _read_screen  # content frame -> state.Screen (kind, button, panel)
         self.read_button = _read_button  # -> 'idle' / 'ff_off' / 'ff_on' / None
         self.read_auto_start = _read_probe("auto_start_toggle")   # pause menu -> 'on' / 'off' / None
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
@@ -108,6 +115,8 @@ class BloonsHarness:
         self.prompt_actions = {k: v for k, v in self.ui["prompts"].items()
                                if not k.startswith("_") and k not in ("max_steps", "after_click_s")}
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
+        self.tracker = RoundTracker()
+        self.rounds = {r["round"]: r for r in _load("rounds.json")["rounds"]}
         self.new_episode()
 
     def _set_map(self, map_name, spots_path=None):
@@ -116,6 +125,8 @@ class BloonsHarness:
         self.map = _load(f"maps/{map_name}.json")
         self.unit = unit_norm(self.map)
         self.keepout = PathKeepout.from_json(self.map["path"], self.unit) if "path" in self.map else None
+        self.masks = load_masks(self.map) if self.map.get("masks") else {}
+        self._masks_cache = None
         self.memory = SpotMemory.load(spots_path or DATA / "maps" / f"{map_name}.spots.json")
         if not self.memory.meta:
             self.memory.meta = {"map": map_name, "game_version": self.map["_meta"]["game_version"]}
@@ -136,6 +147,10 @@ class BloonsHarness:
         self.shop_layout = None       # 'top' / 'bottom' once we've scrolled the shop
         self._next_tid = 1
         self.hud.reset()
+        self.tracker.reset()
+        self._masks_cache = None      # (placed key, {class: Mask}) for observe()
+        self.rounds_done = 0          # rounds finished this game, counted by observe() (the HUD
+                                      # number is ambiguous between rounds; RESEARCH step 2.x)
 
     @property
     def money(self):
@@ -225,10 +240,7 @@ class BloonsHarness:
                 for i, a in enumerate(self.ability_slots)]
 
     def place_context(self):
-        placed = [Placed(t.kind, t.xy, t.tiers, t.tid) for t in self.registry.values()]
-        if self.hero is not None:
-            placed.append(Placed(self.hero.name, self.hero.xy, tid=HERO_TID))
-        return PlaceContext(self.towers, self.unit, placed, self.keepout, self.memory, self.heroes)
+        return PlaceContext(self.towers, self.unit, self._placed(), self.keepout, self.memory, self.heroes)
 
     def available_actions(self):
         """Legal actions right now with their costs (guards.available_actions)."""
@@ -555,7 +567,8 @@ class BloonsHarness:
         """Set the game's Auto Start (a game setting, kept across games). Opens the pause menu
         with the gear button (Escape would only deselect a selected tower), reads the toggle,
         clicks it only if it differs, and closes the menu with Continue unless it was already
-        open. Tell any RoundTracker the new value."""
+        open. `on=None` only reads it (reason 'unchanged', value the setting). The harness's
+        RoundTracker gets the value (observe() needs it for round_ended)."""
         t = self.ui["timing_s"]
         was_paused = self._poll(self.read_kind, tries=1) == "pause"
         if not was_paused:
@@ -564,8 +577,10 @@ class BloonsHarness:
             self.sleep(t["pause_open"])
             if self._poll(self.read_kind, lambda v: v == "pause") != "pause":
                 return ActionResult(False, "no_pause_menu")
-        want = "on" if on else "off"
         cur = self._poll(self.read_auto_start)
+        if on is None and cur is not None:       # read only
+            on = cur == "on"
+        want = "on" if on else "off"
         result = None
         if cur is None:
             result = ActionResult(False, "unreadable")
@@ -583,6 +598,7 @@ class BloonsHarness:
         if result is not None:
             return result
         self.auto_start = bool(on)
+        self.tracker.auto_start = bool(on)
         return ActionResult(True, "set" if cur != want else "unchanged", 0, bool(on))
 
     # --- 4.5 abilities ----------------------------------------------------------------------
@@ -1045,3 +1061,91 @@ class BloonsHarness:
             self._click_ui("menus.sandbox_popup_ok")
         self.refresh_hud()
         return ActionResult(True, "restarted")
+
+    # --- 5.1 observation --------------------------------------------------------------------
+    def _placed(self):
+        placed = [Placed(t.kind, t.xy, t.tiers, t.tid) for t in self.registry.values()]
+        if self.hero is not None:
+            placed.append(Placed(self.hero.name, self.hero.xy, tid=HERO_TID))
+        return placed
+
+    def placeable_masks(self):
+        """{mask class: placement.Mask}: the map's swept masks minus the path keep-out and our
+        towers' footprints. Cached until a tower is placed, sold or upgraded."""
+        from .observe import placeable_masks
+        placed = self._placed()
+        key = tuple((p.kind, p.xy, p.tiers) for p in placed)
+        if self._masks_cache is None or self._masks_cache[0] != key:
+            self._masks_cache = (key, placeable_masks(self.masks, self.unit, placed, self.keepout,
+                                                      self.place_context()))
+        return self._masks_cache[1]
+
+    def mask_classes_of(self, kind, tiers=(0, 0, 0)):
+        """The mask classes a tower kind (or the hero, 'land_r7') places on."""
+        if kind in self.towers:
+            return mask_classes(kind, shape_of(kind, tiers, self.place_context()))
+        return ["land_r7"]
+
+    def observe(self):
+        """One GameState from one frame: screen kind and play button (state.read_screen), the
+        HUD (in game only; filtered), round state (state.RoundTracker: round_ended fires once
+        per finished round, outcome needs 2 frames), plus the registry, hero, upgrade options
+        (price table), ability estimates, path and placeable masks. Also syncs
+        `round_active` from the play button and counts `rounds_done` (the HUD round reads the
+        same before and after a round with auto-start off, so it's only trusted mid-round).
+        Set the Auto Start setting with set_auto_start first (else the tracker assumes off). Call it often: the round edge and outcome are
+        worked out across calls."""
+        from . import rules
+        from .observe import AbilityState, GameState, HeroState, TowerState, UpgradeOption
+        f = self.game.grab()
+        screen = self.read_screen(None if f is None else f.content_bgr())
+        hud = self.refresh_hud(f) if screen.kind == "game" else self.hud.current
+        was_outcome = self.tracker.outcome
+        rs = self.tracker.update(screen, hud)
+        if self.mode == "standard":     # Sandbox: the button always shows FF (rounds are sent
+                                        # from the bloon panel), so it says nothing about rounds
+            if rs.round_active is not None:
+                self.round_active = rs.round_active
+            if rs.round_ended or (rs.outcome == "win" and was_outcome is None):
+                self.rounds_done += 1
+            if rs.round_active and hud is not None and hud.round:   # mid-round the HUD says which
+                self.rounds_done = hud.round - 1
+        gs = self.guard_state()
+        towers, options = [], {}
+        for t in self.registry.values():
+            rng, exact = rules.tower_range(self.towers[t.kind], t.tiers)
+            towers.append(TowerState(t.tid, t.kind, t.xy, t.tiers, rng, exact,
+                                     (rng * self.unit[0], rng * self.unit[1]) if rng is not None else None,
+                                     t.targeting, t.spent, guards.sell_value(t.spent)))
+            opts = []
+            for path in range(3):
+                r = guards.can_upgrade(t.tid, path, gs)
+                locked = r.reason if r.reason in ("max_tier", "crosspath", "tier5_taken") else None
+                cost = None if r.reason == "max_tier" else guards.upgrade_cost(t, path, gs)
+                opts.append(UpgradeOption(cost, bool(r), locked))
+            options[t.tid] = opts
+        hero = None
+        if self.hero is not None:
+            hero = HeroState(self.hero.name, self.hero.xy, self.hero.level, self.hero.xp_into_level,
+                             guards.sell_value(self.hero.spent))
+        now = self.clock()
+        abilities = []
+        for a in self.ability_slots:
+            left = min(t - now for t in a["inst"].values())
+            frac = 0.0 if left <= 0 else min(1.0, left / a["cooldown"])
+            abilities.append(AbilityState(len(abilities), a["name"], next(iter(a["inst"]))[0], left <= 0, frac,
+                                          a["between_rounds"]))
+        cur = self.hud.current
+        path = self.map.get("path") or {}
+        return GameState(
+            t=now, screen=screen.kind, map_name=self.map_name, difficulty=self.difficulty, mode=self.mode,
+            money=cur.money, lives=cur.lives, round=cur.round, max_round=cur.rounds_total,
+            hud_misses=dict(self.hud.misses),
+            round_active=bool(self.round_active), round_ended=rs.round_ended and self.mode == "standard",
+            fast_forward=rs.fast_forward,
+            outcome=rs.outcome, towers=towers, hero=hero, upgrade_options=options, abilities=abilities,
+            path=self.keepout.polyline if self.keepout is not None else None,
+            path_half_width_units=path.get("half_width_units"), unit=self.unit,
+            placeable=self.placeable_masks(),
+            rounds_done=self.rounds_done, next_round=self.rounds_done + 1,
+            round_composition=self.rounds.get(self.rounds_done + 1) if self.mode == "standard" else None)

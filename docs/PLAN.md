@@ -109,7 +109,7 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 4.10 `tools/play.py` REPL. Drive every action by hand on Monkey Meadow — *done in Sandbox (handoff 038); `observe()` from the Phase 4 gate is 5.1, add it to the REPL then*
 
 ## Phase 5 — Full observation
-- [ ] 5.1 `GameState` dataclass + `observe()` (HUD, round state, outcome, registry, masks, path)
+- [x] 5.1 `GameState` dataclass + `observe()` (HUD, round state, outcome, registry, masks, path) — *`bloons/observe.py` + `BloonsHarness.observe()`; also upgrade options (price table), ability estimates, `rounds_done` / `next_round` / `round_composition`*
 - [ ] 5.2 Bloon detector (HSV classes first; small YOLO only if HSV falls short) + `round_composition`
 - [ ] 5.3 `upgrade_options` (table + rules + panel OCR verification) — *table + rules part = `guards.can_upgrade` / `upgrade_cost`; add the panel OCR check*
 - [ ] 5.4 Ability bar reading (ready + cooldown fraction)

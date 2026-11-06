@@ -1250,6 +1250,12 @@ def test_harness_set_auto_start(tmp_path):
     g.calls.clear()
     st["kind"] = "pause"
     assert h.set_auto_start(True) and st["auto"] == "on" and g.calls == [("click", *toggle)] and st["kind"] == "pause"
+    # read only: nothing toggled, the tracker learns the setting
+    g.calls.clear()
+    st["kind"] = "game"
+    r = h.set_auto_start(None)
+    assert r and r.reason == "unchanged" and r.value is True and h.tracker.auto_start is True
+    assert ("click", *toggle) not in g.calls and st["auto"] == "on"
     # the menu doesn't open
     st["kind"], g.on_click = "game", None
     assert h.set_auto_start(False).reason == "no_pause_menu"
@@ -1583,11 +1589,64 @@ def test_play_repl(tmp_path):
     out = io.StringIO()
     p = play.Play(h, out=out)
     for line in ("hud", "place dart .1 .5", "place dart", "place monkey .1 .5", "up 1 sideways",
-                 "state", "py h.money", "nonsense", "prompts", "forget", "state"):
+                 "state", "observe", "py h.money", "nonsense", "prompts", "forget", "state"):
         assert not p.onecmd(line)
     text = out.getvalue()
     assert "$650" in text and "ok  placed cost=170 value=1\n     $480" in text
-    assert "dart_monkey" in text and "usage: place <tower> <x> <y>" in text
+    assert "dart_monkey" in text and "usage: place <tower> <x> <y>" in text and "free cells: land_r6" in text
     assert "could mean" in text and "path is top" in text and "unknown command 'nonsense'" in text
     assert "(no towers placed through the harness)" in text and not h.registry and "handled: " in text
     assert p.onecmd("quit")
+
+
+def test_harness_observe(tmp_path):
+    from bloons.hud import Hud
+    from bloons.state import Screen
+    g, h = _round_harness(tmp_path)
+    now = [100.0]
+    h.clock = lambda: now[0]
+    seq = []
+    h.read_screen = lambda frame: seq.pop(0) if seq else Screen("game", "idle")
+    s = h.observe()
+    assert (s.screen, s.money, s.lives, s.round, s.max_round) == ("game", 650, 200, 1, 40)
+    assert not s.round_active and not s.round_ended and s.outcome is None and s.towers == [] and s.hero is None
+    assert s.round_composition["counts"] == {"red": 20} and s.path.shape[1] == 2
+    free = {c: m.ok.sum() for c, m in s.placeable.items()}
+    # a tower: TowerState, upgrade options, masks lose cells around it
+    tid = h.register("dart_monkey", (0.25, 0.5), 170)
+    h.record_upgrade(tid, 0, 120)
+    s = h.observe()
+    t = s.towers[0]
+    assert t.tiers == (1, 0, 0) and t.range_units == 32 and t.sell_value == 203 and t.range_norm[0] > 0
+    assert [o.locked for o in s.upgrade_options[tid]] == [None, None, None] and s.upgrade_options[tid][0].cost == 170
+    assert all(s.placeable[c].ok.sum() < free[c] for c in free)
+    assert not s.placeable["land_r6"].placeable(0.25, 0.5)
+    # round edge: idle -> running (2 frames to confirm) -> idle fires round_ended exactly once
+    seq[:] = [Screen("game", "ff_off")] * 2 + [Screen("game", "idle")] * 3
+    states = [h.observe() for _ in range(5)]
+    assert [x.round_active for x in states] == [False, True, True, False, False]
+    assert [x.round_ended for x in states] == [False, False, False, True, False] and h.round_active is False
+    assert [x.next_round for x in states] == [1, 1, 1, 2, 2] and states[-1].round_composition["round"] == 2
+    g.hud = Hud(200, 650, 5, 40)                      # mid-round, the HUD resyncs the count
+    seq[:] = [Screen("game", "ff_on")] * 2
+    assert [h.observe().rounds_done for _ in range(2)] == [1, 4]
+    # outcome needs two victory frames, then sticks; the HUD isn't read off-game
+    seq[:] = [Screen("victory")] * 2 + [Screen("pause")]
+    assert h.observe().outcome is None and h.observe().outcome == "win" and h.observe().outcome == "win"
+    assert h.rounds_done == 5
+    # ability estimate: just gained -> cooling with frac 1, ready after its cooldown
+    h.hero_choice = "benjamin"
+    h.register_hero((0.75, 0.25), 1020)
+    h._gain_hero_abilities(3)
+    a = h.observe().abilities[0]
+    assert a.name == "Biohack" and not a.ready and a.cooldown_frac == 1.0
+    now[0] += 61
+    a = h.observe().abilities[0]
+    assert a.ready and a.cooldown_frac == 0.0
+    assert h.mask_classes_of("monkey_ace") == ["land_ace"] and h.mask_classes_of("benjamin") == ["land_r7"]
+    h.new_episode()
+    assert h.observe().outcome is None
+    # Sandbox: the always-FF button doesn't make a round 'active'
+    g, h = _round_harness(tmp_path, mode="sandbox")
+    h.read_screen = lambda frame: Screen("game", "ff_off")
+    assert [h.observe().round_active for _ in range(3)] == [False] * 3 and h.observe().round_composition is None

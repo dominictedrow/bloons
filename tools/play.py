@@ -148,6 +148,26 @@ class Play(cmd.Cmd):
         if not acts:
             self.say("  (none; read the HUD first if money is unknown)")
 
+    def do_observe(self, line):
+        """observe: one GameState (HUD, round state, outcome, towers, upgrade options, abilities,
+        placeable cells per mask class). Run it repeatedly to see round edges."""
+        s = self.h.observe()
+        self.say(f"screen {s.screen}  ${s.money}  lives {s.lives}  round {s.round}/{s.max_round}  "
+                 f"active {s.round_active}  ended {s.round_ended}  ff {s.fast_forward}  outcome {s.outcome}")
+        for t in s.towers:
+            ups = "  ".join(f"{'x' if o.locked else ('$' + str(o.cost)) + ('' if o.affordable else '!')}"
+                            for o in s.upgrade_options[t.tid])
+            rng = f"range {t.range_units}{'' if t.range_exact else '~'}" if t.range_units is not None else "range ?"
+            self.say(f"  {t.tid:>3}  {t.kind:<18} {'-'.join(map(str, t.tiers))}  {rng}  sell ${t.sell_value}  next [{ups}]")
+        if s.hero:
+            self.say(f"  hero {s.hero.name} level {s.hero.level}  sell ${s.hero.sell_value}")
+        for a in s.abilities:
+            self.say(f"  ability {a.slot}: {a.name} {'ready' if a.ready else f'cooling {a.cooldown_frac:.0%}'}")
+        if s.round_composition:
+            self.say(f"  round {s.next_round} (done {s.rounds_done}): {s.round_composition['counts']}  "
+                     f"rbe {s.round_composition['rbe']}")
+        self.say("  free cells: " + "  ".join(f"{c} {int(m.ok.sum())}" for c, m in s.placeable.items()))
+
     def do_cursor(self, line):
         """cursor: the real mouse position in normalized coords (hover a spot, then run this)."""
         x, y = self.h.game.cursor()
@@ -248,11 +268,11 @@ class Play(cmd.Cmd):
         self.report(self.h.set_fast_forward(ON_OFF[a[0].lower()]))
 
     def do_auto(self, line):
-        """auto <on|off>: the game's Auto Start setting."""
-        a = self.args(line, 1, usage="auto <on|off>")
-        if a[0].lower() not in ON_OFF:
-            raise UsageError("auto <on|off>")
-        self.report(self.h.set_auto_start(ON_OFF[a[0].lower()]))
+        """auto [on|off]: the game's Auto Start setting (no argument: just read it)."""
+        a = self.args(line)
+        if len(a) > 1 or (a and a[0].lower() not in ON_OFF):
+            raise UsageError("auto [on|off]")
+        self.report(self.h.set_auto_start(ON_OFF[a[0].lower()] if a else None))
 
     def do_prompts(self, line):
         """prompts: clear popups (collect / continue / cancel). Victory and defeat are left alone."""
