@@ -108,6 +108,8 @@ class BloonsHarness:
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
         self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
+        self.prompt_actions = {k: v for k, v in self.ui["prompts"].items()
+                               if not k.startswith("_") and k not in ("max_steps", "after_click_s")}
         self.auto_start = None        # the game's Auto Start setting once read (a setting, not per game)
         self.new_episode()
 
@@ -779,3 +781,28 @@ class BloonsHarness:
         if t.kind != "heli_pilot":
             return ActionResult(False, "no_patrol")
         return self._set_points(tid, "patrol_points", list(points))
+
+    # --- 4.8 prompts ------------------------------------------------------------------------
+    def _ui_point(self, ref):
+        section, key = ref.split(".")
+        return tuple(self.ui[section][key])
+
+    def handle_prompts(self, overrides=None):
+        """Clear popups and overlays with their default button (ui.json `prompts`; override per
+        harness via `prompt_actions` or per call: {kind: 'section.key' | None}). Repeats while
+        a handled prompt shows, since one can follow another (e.g. restart confirm over pause).
+        -> the screen kinds acted on, in order. Prompts mapped to None (victory, defeat) are
+        left for the caller, and the loop stops there."""
+        actions = dict(self.prompt_actions, **(overrides or {}))
+        cfg = self.ui["prompts"]
+        handled = []
+        for _ in range(cfg["max_steps"]):
+            kind = self._poll(self.read_kind, tries=1)
+            ref = actions.get(kind)
+            if ref is None:
+                break
+            if not self.game.click(*self._ui_point(ref)):
+                break
+            handled.append(kind)
+            self.sleep(cfg["after_click_s"])
+        return handled

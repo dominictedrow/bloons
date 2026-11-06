@@ -617,5 +617,15 @@
    "heli_pilot": "lock_in_place"
   },
   "max_presses": 8
+ },
+ "prompts": {
+  "_notes": "handle_prompts(): state.read_screen kind -> default click (a 'section.key' point in this file), or null = report only and leave it (outcomes: the env decides). Overridable per harness (h.prompt_actions) or per call. Pause -> Continue because the game pauses itself when it loses focus (RESEARCH 1.5). Restart confirm -> Cancel: restarting is new_game/restart's job (4.9).",
+  "collection_event": "menus.collect",
+  "pause": "pause.continue",
+  "restart_confirm": "menus.restart_confirm_cancel",
+  "victory": null,
+  "defeat": null,
+  "max_steps": 5,
+  "after_click_s": 1.0
  }
 }

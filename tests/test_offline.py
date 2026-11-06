@@ -1421,3 +1421,28 @@ def test_harness_target_points(tmp_path):
     dart = h.register("dart_monkey", (0.2, 0.2), 0)
     assert h.set_target_point(dart, 0.5, 0.5).reason == "no_target_point"
     assert h.set_patrol_points(dart, [(0, 0), (1, 1)]).reason == "no_patrol"
+
+
+# --- prompts (PLAN 4.8) ---------------------------------------------------------------------
+def test_harness_handle_prompts(tmp_path):
+    from bloons.harness import BloonsHarness
+    from bloons.ui import UI
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json")
+    pt = lambda sec, k: tuple(round(v, 4) for v in UI[sec][k])
+    screens = ["restart_confirm", "pause", "game"]
+    h.read_kind = lambda frame: screens[0]
+    g.on_click = lambda game, x, y: screens.pop(0)
+    assert h.handle_prompts() == ["restart_confirm", "pause"]
+    assert [c[1:] for c in g.calls] == [pt("menus", "restart_confirm_cancel"), pt("pause", "continue")]
+    # outcomes are reported, not clicked
+    g.calls.clear()
+    screens[:] = ["victory"]
+    assert h.handle_prompts() == [] and g.calls == []
+    # per-call override: click Next on victory
+    screens[:] = ["victory", "collection_event", "map_select"]
+    assert h.handle_prompts({"victory": "menus.victory_next"}) == ["victory", "collection_event"]
+    # a prompt that never goes away stops after max_steps
+    g.on_click = None
+    screens[:] = ["pause"]
+    assert len(h.handle_prompts()) == UI["prompts"]["max_steps"]
