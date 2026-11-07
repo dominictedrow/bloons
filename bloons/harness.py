@@ -21,10 +21,10 @@ import json
 import time
 from pathlib import Path
 
-from . import guards, panel, ui
+from . import abilitybar, guards, panel, rangecircle, ui
 from .hud import HudFilter
 from .placement import (PathKeepout, PlaceContext, Placed, SpotMemory, can_place, load_masks, mask_classes,
-                        record_placement, shape_of, tint_at, unit_norm)
+                        footprint_radius, record_placement, shape_of, tint_at, unit_norm)
 from .result import ActionResult
 from .state import RoundTracker
 
@@ -92,6 +92,7 @@ class BloonsHarness:
         self.sleep = sleep
         self.ui = ui.UI
         self.towers = _load("towers.json")["towers"]
+        self.n_slots = _load("obs.json")["tower_slots"]   # tower slots in observe() / to_vector
         self.heroes = _load("heroes.json")["heroes"]
         ha = _load("hero_abilities.json")
         self.hero_abilities, self.default_cooldown = ha["heroes"], ha["_meta"]["default_cooldown_s"]
@@ -109,6 +110,9 @@ class BloonsHarness:
         self.read_auto_start = _read_probe("auto_start_toggle")   # pause menu -> 'on' / 'off' / None
         self.read_sandbox_panel = _read_probe("sandbox_panel")    # -> 'shop' / 'bloons' / None
         self.icon_diff = _icon_diff     # (before, after) slot crops -> mean |diff|; tests swap it
+        self.read_bar = abilitybar.read_bar   # (content, n_slots, panel_side) -> [SlotRead]; 5.4
+        self.read_range = rangecircle.measure  # (selected, deselected, centre, unit, exclude) -> RangeRead; 5.5
+        self.bar_filter = abilitybar.BarFilter()
         self.read_targeting = self._ocr_targeting   # panel side -> label text ('' if none)
         self.read_paths = self._read_paths          # (side, paths, prices) -> {path: panel.PathRow}
         self.read_map_names = self._ocr_map_names   # map select page -> 6 thumbnail names
@@ -147,16 +151,22 @@ class BloonsHarness:
         # icon (with a ready-count badge), so a slot is an ability name with its instances:
         # {name, cooldown, between_rounds, inst: {(tid, path): ready_at}}.
         self.ability_slots = []
+        self.bar_reads = None         # (clock, [abilitybar.SlotRead]) from the last bar read
+        if hasattr(self, "bar_filter"):
+            self.bar_filter.reset()
         self.round_active = False     # Standard: set by start_round; the round loop clears it
         self.fast_forward = None      # last FF state read or set
         self.locked = set()          # tower kinds not available (mode / unlocks)
         self.shop_layout = None       # 'top' / 'bottom' once we've scrolled the shop
         self._next_tid = 1
+        self.slots = [None] * self.n_slots   # tid per tower slot: first free one on place, freed on sell
         self.hud.reset()
         self.tracker.reset()
         self._masks_cache = None      # (placed key, {class: Mask}) for observe()
         self.panel_checks = {}        # tid -> (tiers, {path: agreed?}) from the last panel reads
         self.price_mismatches = []    # (kind, tiers, path, panel price, table price) seen buying
+        self.range_checks = {}        # tid -> (tiers, measured range in units) from measure_range
+        self.range_mismatches = []    # (kind, tiers, measured, table) off by more than the tolerance
         self.rounds_done = 0          # rounds finished this game, counted by observe() (the HUD
                                       # number is ambiguous between rounds; RESEARCH step 2.x)
 
@@ -178,6 +188,8 @@ class BloonsHarness:
         self._next_tid += 1
         self.registry[tid] = guards.TowerRec(tid, kind, tuple(xy), (0, 0, 0), int(spent))
         self.bought.add(kind)
+        if None in self.slots:          # more towers than slots: the extra ones get none
+            self.slots[self.slots.index(None)] = tid
         return tid
 
     def register_hero(self, xy, spent):
@@ -202,6 +214,7 @@ class BloonsHarness:
             self.hero = None
         else:
             self.registry.pop(tid)
+            self.slots = [None if s == tid else s for s in self.slots]
         self._drop_abilities(lambda key: key[0] == tid)
 
     # --- contexts for guards / placement ----------------------------------------------------
@@ -239,13 +252,31 @@ class BloonsHarness:
 
     @property
     def abilities(self):
-        """[guards.Ability] in bar order. `ready` is an estimate from the cooldown (game seconds
-        counted as wall seconds: conservative with fast-forward on) until the bar is read
-        from pixels (step 5.4)."""
+        """[guards.Ability] in bar order. `ready` comes from the cooldown estimate (game seconds
+        counted as wall seconds), which every bar read (`sync_abilities`: observe() and the
+        ability actions) resets from the pixels (5.4)."""
         now = self.clock()
         return [guards.Ability(i, a["name"], any(now >= t for t in a["inst"].values()), a["between_rounds"],
                                next(iter(a["inst"]))[0])
                 for i, a in enumerate(self.ability_slots)]
+
+    def sync_abilities(self, content, panel_side=None):
+        """Read the ability bar from `content` (5.4) and set each slot's cooldown estimate from
+        it: a ring with fraction f -> the slot's earliest instance is ready in f * cooldown; no
+        ring -> it's ready now. Slots the reader can't see are left alone. Returns the
+        filtered reads (also kept in `bar_reads`), or None when there's nothing to read."""
+        if content is None or not self.ability_slots:
+            return None
+        now = self.clock()
+        reads = self.bar_filter.update(self.read_bar(content, len(self.ability_slots), panel_side), now,
+                                       [a["cooldown"] for a in self.ability_slots])
+        for r, a in zip(reads, self.ability_slots):
+            if not r.seen:
+                continue
+            key = min(a["inst"], key=a["inst"].get)
+            a["inst"][key] = now + r.frac * a["cooldown"] if r.ring else min(a["inst"][key], now)
+        self.bar_reads = (now, reads)
+        return reads
 
     def place_context(self):
         return PlaceContext(self.towers, self.unit, self._placed(), self.keepout, self.memory, self.heroes)
@@ -541,6 +572,53 @@ class BloonsHarness:
             return ActionResult(False, "unreadable", None, (rows, bad))
         return ActionResult(not bad, "mismatch" if bad else "match", None, (rows, bad))
 
+    # --- 5.5 range --------------------------------------------------------------------------
+    @property
+    def ground_unit(self):
+        """One game unit on the ground in normalized coords (ux, uy): the map's unit_norm with
+        y times range_circle.ground_y_scale (the map is seen at a tilt; RESEARCH 5.5)."""
+        return rangecircle.ground_unit(self.unit)
+
+    def measure_range(self, tid):
+        """Measure tower `tid`'s range from its circle: select it, grab, close the panel, grab,
+        and read the disc between the two frames (rangecircle.measure). ok -> value is the
+        range in game units and it agrees with the table within range_circle.tolerance
+        ('match'), or the table has no value ('measured'); 'mismatch' (recorded in
+        range_mismatches) / 'unreadable' / a selection failure otherwise. The result is kept
+        per tower at its current tiers (observe(): TowerState.range_measured)."""
+        from . import rules
+        t = self.registry.get(tid)
+        if t is None:
+            return ActionResult(False, "no_tower")
+        rc = self.ui["range_circle"]
+        r = self.select_tower(tid)
+        if not r:
+            return r
+        side = self.panel_side()
+        if side is None:
+            return ActionResult(False, "no_panel")
+        self.sleep(rc["settle_s"])
+        selected = self.content()
+        self.close_panel(side)
+        self.sleep(rc["settle_s"] + 0.2)
+        deselected = self.content()
+        if selected is None or deselected is None or selected.shape != deselected.shape:
+            return ActionResult(False, "no_frame")
+        p = ui.panel(side)
+        (ax, ay), (hx, hy) = p["ability_icon"], rc["ability_icon_half"]
+        exclude = [tuple(b) for b in rc["exclude_always"]] + [tuple(p["panel"]), (ax - hx, ay - hy, ax + hx, ay + hy)]
+        read = self.read_range(selected, deselected, t.xy, self.ground_unit, exclude)
+        if read.units is None:
+            return ActionResult(False, "unreadable", None, read)
+        self.range_checks[tid] = (t.tiers, read.units)
+        table, _ = rules.tower_range(self.towers[t.kind], t.tiers)
+        if table is None:
+            return ActionResult(True, "measured", None, read.units)
+        if abs(read.units - table) > rc["tolerance"]:
+            self.range_mismatches.append((t.kind, t.tiers, read.units, table))
+            return ActionResult(False, "mismatch", None, read.units)
+        return ActionResult(True, "match", None, read.units)
+
     def buy_hero_level(self):
         """Buy the hero's next level with the panel's level-up button. ok -> value is the new
         level. (The harness assumes no XP earned toward it, so the guard's price is an upper
@@ -691,10 +769,20 @@ class BloonsHarness:
         return frame[max(round((y - hy) * h), 0):h, max(round((x - hx) * w), 0):min(round((x + hx) * w), w)]
 
     def _ability_fired(self, slot, before):
-        """Did the slot's icon change like a use does (ring over a darkened icon)?"""
+        """Did the press fire the ability? A (near) full ring on the slot says yes. Where the
+        bar reader can see the slot and only one instance was ready, the ring is required:
+        an icon coming off cooldown changes the crop just as much (seen live, 2026-11-06).
+        Otherwise (unreadable, or a ready-count badge, whose first press leaves the icon
+        ready) the icon crop changing enough counts."""
         need = self.ui["ability_bar"]["used_min_diff"]
+        now = self.clock()
+        multi = sum(t <= now for t in self.ability_slots[slot]["inst"].values()) > 1
         for _ in range(3):
-            if self.icon_diff(before, self.slot_crop(self.content(), slot)) >= need:
+            c = self.content()
+            r = self.read_bar(c, slot + 1)[slot] if c is not None else None
+            if r is not None and r.seen and r.ring and r.frac >= 0.85:
+                return True
+            if (r is None or not r.seen or multi) and self.icon_diff(before, self.slot_crop(c, slot)) >= need:
                 return True
             self.sleep(0.15)
         return False
@@ -718,10 +806,12 @@ class BloonsHarness:
         its hotkey if confirmed, else a click on the icon. `target` (x, y): click it next, for
         abilities that ask for a point. Confirmed by the icon changing. ok -> value is the
         ability's name. With no panel open (actions close theirs), the bar is in place."""
+        content = self.content()
+        self.sync_abilities(content)
         g = guards.can_use_ability(slot, self.guard_state())
         if not g:
             return g
-        before = self.slot_crop(self.content(), slot)
+        before = self.slot_crop(content, slot)
         r = self.press("ability", xy=ui.ability_slot(slot), path=slot)
         if not r:
             return r
@@ -745,9 +835,11 @@ class BloonsHarness:
             return ActionResult(False, "no_ability" if tid in self.registry or tid == HERO_TID else "no_tower")
         if not self.round_active and not self.ability_slots[slot]["between_rounds"]:
             return ActionResult(False, "round_only")
+        content = self.content()
+        self.sync_abilities(content)
         if self.clock() < self.ability_slots[slot]["inst"][key]:
             return ActionResult(False, "cooldown")
-        before = self.slot_crop(self.content(), slot)
+        before = self.slot_crop(content, slot)
         r = self.select_tower(tid)
         if not r:
             return r
@@ -1201,7 +1293,8 @@ class BloonsHarness:
         """One GameState from one frame: screen kind and play button (state.read_screen), the
         HUD (in game only; filtered), round state (state.RoundTracker: round_ended fires once
         per finished round, outcome needs 2 frames), plus the registry, hero, upgrade options
-        (price table; `checked` from the last panel read, 5.3), ability estimates, path and placeable masks. Also syncs
+        (price table; `checked` from the last panel read, 5.3), abilities (bar read, 5.4), ranges
+        (table, or `range_measured` from measure_range, 5.5), path and placeable masks. Also syncs
         `round_active` from the play button and counts `rounds_done` (the HUD round reads the
         same before and after a round with auto-start off, so it's only trusted mid-round).
         Set the Auto Start setting with set_auto_start first (else the tracker assumes off).
@@ -1229,9 +1322,16 @@ class BloonsHarness:
         towers, options = [], {}
         for t in self.registry.values():
             rng, exact = rules.tower_range(self.towers[t.kind], t.tiers)
-            towers.append(TowerState(t.tid, t.kind, t.xy, t.tiers, rng, exact,
-                                     (rng * self.unit[0], rng * self.unit[1]) if rng is not None else None,
-                                     t.targeting, t.spent, guards.sell_value(t.spent)))
+            seen_tiers, measured = self.range_checks.get(t.tid, (None, None))
+            measured = measured if seen_tiers == t.tiers else None
+            use = measured if measured is not None else rng
+            ux, uy = self.ground_unit
+            shape = shape_of(t.kind, t.tiers, self.place_context())
+            towers.append(TowerState(t.tid, t.kind, t.xy, t.tiers, rng, exact or measured is not None,
+                                     (use * ux, use * uy) if use is not None else None,
+                                     t.targeting, t.spent, guards.sell_value(t.spent), measured,
+                                     footprint_radius(shape) if shape else None,
+                                     self.slots.index(t.tid) if t.tid in self.slots else None))
             opts = []
             for path in range(3):
                 r = guards.can_upgrade(t.tid, path, gs)
@@ -1245,12 +1345,17 @@ class BloonsHarness:
             hero = HeroState(self.hero.name, self.hero.xy, self.hero.level, self.hero.xp_into_level,
                              guards.sell_value(self.hero.spent))
         now = self.clock()
+        seen = set()
+        if screen.kind == "game":
+            reads = self.sync_abilities(content, screen.panel) or []
+            seen = {r.slot for r in reads if r.seen}
+            now = self.clock()
         abilities = []
         for a in self.ability_slots:
             left = min(t - now for t in a["inst"].values())
             frac = 0.0 if left <= 0 else min(1.0, left / a["cooldown"])
             abilities.append(AbilityState(len(abilities), a["name"], next(iter(a["inst"]))[0], left <= 0, frac,
-                                          a["between_rounds"]))
+                                          a["between_rounds"], len(abilities) in seen))
         bloons = None
         if screen.kind == "game" and content is not None and self.detector is not None:
             if (self.mode == "standard" and screen.button == "idle" and rs.round_active is False
@@ -1273,4 +1378,4 @@ class BloonsHarness:
             placeable=self.placeable_masks(),
             rounds_done=self.rounds_done, next_round=self.rounds_done + 1,
             round_composition=self.rounds.get(self.rounds_done + 1) if self.mode == "standard" else None,
-            bloons=bloons)
+            bloons=bloons, slots=list(self.slots))

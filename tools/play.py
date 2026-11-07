@@ -158,6 +158,8 @@ class Play(cmd.Cmd):
             ups = "  ".join(f"{'x' if o.locked else ('$' + str(o.cost)) + ('' if o.affordable else '!')}"
                             for o in s.upgrade_options[t.tid])
             rng = f"range {t.range_units}{'' if t.range_exact else '~'}" if t.range_units is not None else "range ?"
+            if t.range_measured is not None:
+                rng += f" (seen {t.range_measured})"
             self.say(f"  {t.tid:>3}  {t.kind:<18} {'-'.join(map(str, t.tiers))}  {rng}  sell ${t.sell_value}  next [{ups}]")
         if s.hero:
             self.say(f"  hero {s.hero.name} level {s.hero.level}  sell ${s.hero.sell_value}")
@@ -212,6 +214,12 @@ class Play(cmd.Cmd):
             self.report(r)
             if not r:
                 break
+
+    def do_range(self, line):
+        """range <tid>: measure a tower's range from its circle (select, read, close) and compare
+        with the table; `observe` then shows it as 'seen'."""
+        a = self.args(line, 1, usage="range <tid>")
+        self.report(self.h.measure_range(tid_of(a[0])))
 
     def do_level(self, line):
         """level [times]: buy the hero's next level."""

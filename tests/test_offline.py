@@ -1,4 +1,5 @@
 """Offline tests (no game needed). Run: pytest tests/test_offline.py"""
+import json
 import sys
 from pathlib import Path
 
@@ -1310,7 +1311,7 @@ def test_harness_ability_slots(tmp_path):
     # selling drops the instance; an empty slot disappears and the next one moves up
     h.unregister(b)
     assert [x.name for x in h.abilities] == ["Perma Charge"]
-    # hero abilities arrive with levels (Quincy: Rapid Shot at 3); slot 1 has no confirmed key
+    # hero abilities arrive with levels (Quincy: Rapid Shot at 3); slot 1's key '2' is confirmed
     h.register_hero((0.6, 0.6), 540)
     for lv in (2, 3):
         h.hero.level = lv - 1
@@ -1318,9 +1319,8 @@ def test_harness_ability_slots(tmp_path):
     assert [x.name for x in h.abilities] == ["Perma Charge", "Rapid Shot"] and h.abilities[1].tid == HERO_TID
     now[0] = 1000.0
     h.icon_diff = lambda x, y: 30.0
-    from bloons.ui import ability_slot
     assert h.place_ability_target(1, 0.4, 0.4)
-    assert g.calls[-2:] == [("click", *[round(v, 4) for v in ability_slot(1)]), ("click", 0.4, 0.4)]
+    assert g.calls[-2:] == [("key", "2"), ("click", 0.4, 0.4)]
     assert h.use_ability(5).reason == "no_ability"
 
 
@@ -1618,6 +1618,8 @@ def test_harness_observe(tmp_path):
     s = h.observe()
     t = s.towers[0]
     assert t.tiers == (1, 0, 0) and t.range_units == 32 and t.sell_value == 203 and t.range_norm[0] > 0
+    # the range ellipse: y uses the ground's y scale (0.866 of x in px); no measurement yet
+    assert t.range_measured is None and abs(t.range_norm[1] / h.unit[1] - 32 * 0.866) < 1e-6
     assert [o.locked for o in s.upgrade_options[tid]] == [None, None, None] and s.upgrade_options[tid][0].cost == 170
     assert all(s.placeable[c].ok.sum() < free[c] for c in free)
     assert not s.placeable["land_r6"].placeable(0.25, 0.5)
@@ -1856,3 +1858,273 @@ def test_harness_check_upgrades_and_upgrade_reads_panel(tmp_path):
     rows[1] = PathRow("buy", 160, 1)
     g.on_key = None                                                # nothing changes: still unconfirmed
     assert h.upgrade(tid, 1).reason == "unconfirmed" and t.tiers == (1, 1, 0)
+
+
+# --- 5.4 ability bar --------------------------------------------------------------------------
+BAR_FIX = Path(__file__).resolve().parents[1] / "bloons/data/fixtures/abilitybar"
+
+
+def _bar_frame(stem, meta):
+    import cv2
+    import numpy as np
+    crop = cv2.imread(str(BAR_FIX / f"{stem}.jpg"))
+    (x0, y0), (w, h) = meta["offset"], meta["frame"]
+    img = np.zeros((h, w, 3), np.uint8)
+    img[y0:y0 + crop.shape[0], x0:x0 + crop.shape[1]] = crop
+    return img
+
+
+def test_abilitybar_read_fixtures():
+    # 10 live strips, 3 slots each: ring fraction within 0.03 of the fitted cooldown line,
+    # no ring on ready icons (also with Fan Club's stray orange pixels at ~105 deg)
+    from bloons.abilitybar import read_bar
+    meta = json.loads((BAR_FIX / "bar.json").read_text())
+    for stem, truth in meta["frames"].items():
+        reads = read_bar(_bar_frame(stem, meta), 3)
+        assert all(r.seen for r in reads), stem
+        for r, want in zip(reads, truth):
+            assert r.ring == (want > 0), (stem, r, want)
+            assert abs(r.frac - want) <= 0.03, (stem, r, want)
+
+
+def test_abilitybar_unseen_and_shift():
+    import numpy as np
+    from bloons.abilitybar import read_bar
+    reads = read_bar(np.zeros((1594, 2940, 3), np.uint8), 2)      # black: nothing to read
+    assert [(r.seen, r.frac) for r in reads] == [(False, None), (False, None)]
+    assert read_bar(None, 2) == [] and read_bar(np.zeros((10, 10, 3), np.uint8), 0) == []
+    # with the panel on the left the bar moves right: the unshifted slot 0 sees no ring there
+    meta = json.loads((BAR_FIX / "bar.json").read_text())
+    img = _bar_frame("0117.72_post3", meta)
+    assert read_bar(img, 2)[1].frac == 1.0 and not read_bar(img, 2, "left")[1].ring
+
+
+def test_abilitybar_filter():
+    from bloons.abilitybar import BarFilter, SlotRead
+    f = BarFilter(jump_frac=0.15, confirm_s=2.0)
+    assert f.update([SlotRead(0, True, 0.8)], 0.0)[0].frac == 0.8
+    # the ring vanishes mid-cooldown (Sandbox round start): held until it lasts 2 s
+    assert f.update([SlotRead(0, False, 0.0)], 0.5)[0].frac == 0.8
+    assert f.update([SlotRead(0, True, 0.75)], 1.5)[0].frac == 0.75
+    assert f.update([SlotRead(0, False, 0.0)], 2.0)[0].frac == 0.75
+    assert f.update([SlotRead(0, False, 0.0)], 3.4)[0].frac == 0.75
+    assert f.update([SlotRead(0, False, 0.0)], 4.1)[0].frac == 0.0       # lasted: believed
+    # sparse reads: a ring read long ago may have run out since -> believed at once
+    f.update([SlotRead(0, True, 0.6)], 20.0)
+    assert f.update([SlotRead(0, False, 0.0)], 25.0)[0].frac == 0.0
+    # with the cooldown known: held while > 1 s should be left, reporting the extrapolation
+    f = BarFilter(confirm_s=2.0, slack_s=1.0)
+    f.update([SlotRead(0, True, 0.12)], 40.0, [50.0])                   # 6 s left
+    assert f.update([SlotRead(0, False, 0.0)], 42.0, [50.0])[0].frac == 0.08   # live case, 43.0
+    assert f.update([SlotRead(0, True, 0.06)], 43.0, [50.0])[0].frac == 0.06
+    assert not f.update([SlotRead(0, False, 0.0)], 45.5, [50.0])[0].ring   # 0.5 s left: finish
+    # a natural finish (small arc -> none) is taken at once; unseen reads pass through
+    f.update([SlotRead(0, True, 0.05)], 10.0)
+    assert not f.update([SlotRead(0, False, 0.0)], 10.5)[0].ring
+    assert f.update([SlotRead(0, False, None, False)], 11.0)[0].seen is False
+
+
+def test_harness_sync_abilities(tmp_path):
+    import numpy as np
+    from bloons.abilitybar import SlotRead
+    from bloons.harness import BloonsHarness
+    g = FakeGame()
+    now = [100.0]
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json", mode="sandbox")
+    h.clock = lambda: now[0]
+    t = h.register("boomerang_monkey", (0.3, 0.3), 220)
+    for _ in range(4):
+        h.record_upgrade(t, 1, 0)                 # Turbo Charge, 45 s, starts on cooldown
+    frame = np.zeros((10, 10, 3), np.uint8)
+    reads = {"r": [SlotRead(0, False, 0.0)]}
+    h.read_bar = lambda content, n, side=None: reads["r"][:n]
+    assert not h.abilities[0].ready
+    assert h.sync_abilities(frame) and h.abilities[0].ready          # the bar says ready: it is
+    reads["r"] = [SlotRead(0, True, 0.5)]
+    h.sync_abilities(frame)
+    assert not h.abilities[0].ready and h.ability_slots[0]["inst"][(t, 1)] == 100.0 + 22.5
+    reads["r"] = [SlotRead(0, False, None, False)]                    # unseen: estimate kept
+    h.sync_abilities(frame)
+    assert h.ability_slots[0]["inst"][(t, 1)] == 122.5
+    assert h.sync_abilities(None) is None
+    # use_ability reads the bar before its guard: a ready read lets it fire early
+    now[0] = 103.0              # 19.5 s should be left: the filter holds the ring-less read back
+    reads["r"] = [SlotRead(0, False, 0.0)]
+    assert h.sync_abilities(frame)[0].frac == round(19.5 / 45, 3)
+    now[0] = 123.0                                   # run out by now: believed at once
+    h.round_active = True
+    reads["r"] = [SlotRead(0, False, 0.0)]
+    h.icon_diff = lambda x, y: 30.0      # the crop changes (icon coming off cooldown) but no ring:
+    assert h.use_ability(0).reason == "unconfirmed" and g.calls[-1] == ("key", "1")   # not a use
+    reads["r"] = [SlotRead(0, False, 0.0)]
+    g.on_key = lambda game, k: reads.update(r=[SlotRead(0, True, 1.0)])   # the press draws a full ring
+    r = h.use_ability(0)
+    assert r and r.reason == "used" and not h.abilities[0].ready
+
+
+# --- 5.5 range circles ------------------------------------------------------------------------
+RANGE_FIX = Path(__file__).resolve().parents[1] / "bloons/data/fixtures/range"
+
+
+def _range_exclude(side):
+    from bloons import ui
+    from bloons.ui import UI
+    rc, p = UI["range_circle"], ui.panel(side)
+    (ax, ay), (hx, hy) = p["ability_icon"], rc["ability_icon_half"]
+    return [tuple(b) for b in rc["exclude_always"]] + [tuple(p["panel"]), (ax - hx, ay - hy, ax + hx, ay + hy)]
+
+
+def test_range_fixtures():
+    # 4 live circles: a crosspath Dart 3-0-2 (additive 52.8, not 55.2), Tack (its sprite
+    # doesn't change), Glue 0-3-0 in the corner (its tall sprite stops ~40 % of the rays),
+    # Ice 3-0-1. Within 0.3 units of the table.
+    import cv2
+    import numpy as np
+    from bloons import rangecircle
+    meta = json.loads((RANGE_FIX / "range.json").read_text())
+    W, H = meta["frame"]
+    unit = rangecircle.ground_unit(json.loads((RANGE_FIX.parents[1] / "maps/monkey_meadow.json").read_text())["scale"]["unit_norm"])
+    for name, c in meta["cases"].items():
+        fr = {}
+        for k in ("sel", "des"):
+            f = np.zeros((H, W, 3), np.uint8)
+            x0, y0, x1, y1 = c["box"]
+            f[y0:y1, x0:x1] = cv2.imread(str(RANGE_FIX / f"{name}_{k}.jpg"))
+            fr[k] = f
+        r = rangecircle.measure(fr["sel"], fr["des"], c["xy"], unit, _range_exclude(c["side"]))
+        assert r.units is not None and abs(r.units - c["range"]) <= 0.3, (name, r)
+        assert r.spread < 0.5, (name, r)
+
+
+def test_range_synthetic():
+    # an ellipse disc (ry = 0.866 rx in px) on a textured background, a sprite outline that
+    # changes, a foliage blob that moves; plus: identical frames -> unreadable
+    import numpy as np
+    from bloons import rangecircle
+    rng = np.random.default_rng(0)
+    H, W = 800, 1400
+    des = rng.integers(60, 200, (H, W, 3), dtype=np.uint8)
+    sel = des.copy()
+    unit = (0.01, 0.01 * W / H * 0.866)                 # 14 px per unit along x on the ground
+    cx, cy, rad = 500, 400, 20.0                        # 20 units: 280 px x, 242 px y
+    yy, xx = np.mgrid[0:H, 0:W]
+    disc = ((xx - cx) / (rad * unit[0] * W)) ** 2 + ((yy - cy) / (rad * unit[1] * H)) ** 2 <= 1
+    sel[disc] = (sel[disc] * 0.7).astype(np.uint8)
+    ring = np.abs(np.hypot(xx - cx, yy - cy) - 30) < 2  # sprite outline highlight
+    sel[ring] = 255
+    sel[(np.hypot(xx - cx, yy - cy) < 28)] = des[(np.hypot(xx - cx, yy - cy) < 28)]   # sprite unchanged
+    blob = (np.abs(xx - 900) < 40) & (np.abs(yy - 150) < 40)
+    sel[blob] = 0
+    r = rangecircle.measure(sel, des, (cx / W, cy / H), unit)
+    assert abs(r.units - rad) < 0.3 and r.rays > 100, r
+    assert rangecircle.measure(des, des, (cx / W, cy / H), unit).units is None
+    # a panel box over the right half: fewer rays, same answer
+    r2 = rangecircle.measure(sel, des, (cx / W, cy / H), unit, [(0.4, 0.0, 1.0, 1.0)])
+    assert abs(r2.units - rad) < 0.3 and r2.rays < r.rays
+
+
+def test_harness_measure_range(tmp_path):
+    from bloons.harness import BloonsHarness
+    from bloons.rangecircle import RangeRead
+    g = FakeGame()
+    h = BloonsHarness(g, "monkey_meadow", sleep=lambda s: None, spots_path=tmp_path / "s.json", mode="sandbox")
+    assert h.measure_range(7).reason == "no_tower"
+    tid = h.register("dart_monkey", (0.3, 0.3), 170)
+    h.read_panel = lambda frame: None
+    assert h.measure_range(tid).reason == "no_panel"
+    h.read_panel = lambda frame: "right"
+    seen = {}
+
+    def fake(sel, des, centre, unit, exclude):
+        seen.update(centre=centre, unit=unit, n=len(exclude))
+        return RangeRead(seen.get("value"), 120, 0.1)
+    h.read_range = fake
+    assert h.measure_range(tid).reason == "unreadable" and tid not in h.range_checks
+    seen["value"] = 31.9
+    r = h.measure_range(tid)
+    assert r and r.reason == "match" and r.value == 31.9 and h.range_checks[tid] == ((0, 0, 0), 31.9)
+    assert seen["centre"] == (0.3, 0.3) and seen["unit"] == h.ground_unit and seen["n"] >= 6
+    # a crosspath read is kept per tiers; far from the table -> mismatch, recorded
+    h.record_upgrade(tid, 2, 0)
+    seen["value"] = 45.0
+    r = h.measure_range(tid)
+    assert not r and r.reason == "mismatch" and h.range_mismatches == [("dart_monkey", (0, 0, 1), 45.0, 40)]
+    assert h.range_checks[tid] == ((0, 0, 1), 45.0)
+
+
+# --- observation vector + grid image (PLAN 5.6) ---------------------------------------------
+def test_obs_spec_matches_data():
+    """data/obs.json's one-hot lists cover towers.json / heroes.json / rounds.json."""
+    from bloons import obsvec
+    spec = obsvec.load_spec()
+    data = Path(__file__).resolve().parents[1] / "bloons/data"
+    towers = json.loads((data / "towers.json").read_text())["towers"]
+    heroes = json.loads((data / "heroes.json").read_text())["heroes"]
+    rounds = json.loads((data / "rounds.json").read_text())["rounds"]
+    assert set(spec["tower_kinds"]) == set(towers) and set(spec["heroes"]) == set(heroes)
+    assert set().union(*(r["counts"] for r in rounds)) <= set(spec["bloon_types"])
+    assert set(spec["maps"]) >= {p.name[:-5] for p in (data / "maps").glob("*.json") if p.name.count(".") == 1}
+    assert len(set(spec["tower_kinds"])) == len(spec["tower_kinds"])
+
+
+def test_obs_vector_and_grid(tmp_path):
+    """to_vector: fixed length whatever is on the map, segments as layout() says; towers keep
+    their slot after an earlier one is sold; grid_image: path / placeable / towers / ranges /
+    bloons channels line up with what's placed."""
+    import numpy as np
+    import pytest
+    from bloons import obsvec
+    from bloons.detect import Bloon
+    from bloons.state import Screen
+    g, h = _round_harness(tmp_path)
+    h.read_screen = lambda frame: Screen("game", "idle")
+    spec = obsvec.load_spec()
+    parts = {n: (a, b) for n, a, b in obsvec.layout()}
+    s0 = h.observe()
+    v0 = s0.to_vector()
+    assert v0.dtype == np.float32 and v0.shape == (obsvec.layout()[-1][2],) and np.isfinite(v0).all()
+    seg = lambda v, n: v[slice(*parts[n])]
+    assert seg(v0, "map")[spec["maps"].index("monkey_meadow")] == 1 and seg(v0, "map").sum() == 1
+    assert seg(v0, "money")[1] == 1 and seg(v0, "lives")[0] == 1.0          # 650 / 200 lives read
+    assert seg(v0, "composition_counts")[spec["bloon_types"].index("red")] > 0 and seg(v0, "slot0").sum() == 0
+    # two towers, sell the first: the second stays in slot 1
+    a = h.register("dart_monkey", (0.25, 0.5), 170)
+    b = h.register("tack_shooter", (0.6, 0.3), 260)
+    h.record_upgrade(b, 0, 150)
+    h.unregister(a)
+    s = h.observe()
+    assert s.slots[:2] == [None, b] and s.towers[0].slot == 1 and s.towers[0].footprint_units == 6
+    v = s.to_vector()
+    assert v.shape == v0.shape and seg(v, "slot0").sum() == 0
+    s1 = seg(v, "slot1")
+    assert s1[0] == 1 and s1[1 + spec["tower_kinds"].index("tack_shooter")] == 1
+    k = 1 + len(spec["tower_kinds"])
+    assert tuple(s1[k:k + 2]) == pytest.approx((0.6, 0.3)) and s1[k + 2] == pytest.approx(0.2)
+    # a new tower takes the freed slot 0
+    c = h.register("dart_monkey", (0.3, 0.7), 170)
+    assert h.slots[:2] == [c, b]
+    # grid: channel names, the path channel follows the track, towers / ranges near them
+    img = h.observe().grid_image()
+    names = obsvec.grid_channels()
+    gg = spec["grid"]
+    assert img.shape == (len(names), gg["ny"], gg["nx"]) and img.dtype == np.float32
+    assert 0 < img[names.index("path")].mean() < 0.5 and img.min() >= 0 and img.max() <= 1
+    cell = lambda x, y: (int((y - gg["box"][1]) / (gg["box"][3] - gg["box"][1]) * gg["ny"]),
+                         int((x - gg["box"][0]) / (gg["box"][2] - gg["box"][0]) * gg["nx"]))
+    j, i = cell(0.6, 0.3)
+    assert img[names.index("towers"), j, i] > 0 and img[names.index("ranges"), j, i] > 0
+    empty = s0.grid_image()
+    pr6 = names.index("placeable_land_r6")
+    assert img[pr6, j, i] < 0.25 and img[pr6, j, i] < empty[pr6, j, i]  # mostly covered by our tower
+    assert img[names.index("bloons")].sum() == 0
+    xc, yc = obsvec.cell_centre(i, j)
+    assert cell(xc, yc) == (j, i)
+    # bloons: counts in the vector, density in the grid, lead = progress along the path
+    st = h.observe()
+    p = st.path[len(st.path) // 2]
+    st.bloons = [Bloon(float(p[0]), float(p[1]), "blue", 3, 2000, 0.1)]
+    v = st.to_vector()
+    assert seg(v, "bloons_counts")[spec["bloon_types"].index("blue")] > 0
+    assert 0.3 < seg(v, "bloons_lead")[0] < 0.7 and seg(v, "bloons_lead")[2] == 1
+    assert st.grid_image()[names.index("bloons")].sum() > 0
+    assert obsvec.path_progress(st.path, [tuple(st.path[0]), tuple(st.path[-1])]) == pytest.approx([0, 1])

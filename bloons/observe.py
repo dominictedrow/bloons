@@ -1,12 +1,16 @@
 """The observation: GameState and what it's built from (PLAN Phase 5). Portable, no OS calls.
 
 `BloonsHarness.observe()` fills a GameState from one frame (screen kind, play button, HUD)
-plus what the harness knows (registry, hero, ability estimates) and the map data (path,
-placeable masks). Fields that later steps fill are None until then:
-  ability cooldown_frac from pixels (5.4; until then from the harness's
-  estimate), measured ranges (5.5). upgrade_options come from the price table, with
-  `checked` from the last panel read (5.3: harness.check_upgrades, and every upgrade()).
-  to_vector / grid image are 5.6.
+plus what the harness knows (registry, hero, abilities) and the map data (path, placeable
+masks):
+  ability cooldown_frac is read off the bar's cooldown rings when the frame shows the game
+  (5.4, `from_pixels`), else the harness's clock estimate;
+  tower ranges come from the table, or from the circle once harness.measure_range has read
+  it at the tower's current tiers (5.5, `range_measured`);
+  upgrade_options come from the price table, with `checked` from the last panel read (5.3:
+  harness.check_upgrades, and every upgrade()).
+to_vector() / grid_image() (5.6) turn it into numbers for a model: bloons/obsvec.py, layout in
+data/obs.json.
 """
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -25,12 +29,17 @@ class TowerState:
     kind: str
     xy: tuple                       # normalized content coords
     tiers: tuple
-    range_units: Optional[float]    # rules.tower_range: None if unknown
-    range_exact: bool               # False with two upgraded paths (5.5 measures it)
-    range_norm: Optional[tuple]     # (rx, ry): the range circle's radii in normalized coords
+    range_units: Optional[float]    # rules.tower_range (table): None if unknown
+    range_exact: bool               # table value is the game's (one path upgraded) or measured
+    range_norm: Optional[tuple]     # (rx, ry): the range ellipse's radii in normalized coords
+                                    # (measured range if any, else the table; ry uses the
+                                    # ground's y scale, 0.866 of x: RESEARCH 5.5)
     targeting: Optional[str]        # last mode set through the harness (None = game default)
     spent: int
     sell_value: int
+    range_measured: Optional[float] = None   # harness.measure_range at these tiers, in units
+    footprint_units: Optional[float] = None  # footprint radius (a rect: its larger half-side)
+    slot: Optional[int] = None               # the tower's slot (GameState.slots index)
 
 
 @dataclass(frozen=True)
@@ -56,8 +65,9 @@ class AbilityState:
     name: str
     tid: Any
     ready: bool
-    cooldown_frac: float            # 0 = ready, 1 = just used (estimated from the clock until 5.4)
+    cooldown_frac: float            # 0 = ready, 1 = just used
     between_rounds: bool
+    from_pixels: bool = False       # read off the bar in this frame (5.4); False = clock estimate
 
 
 @dataclass
@@ -94,7 +104,18 @@ class GameState:
     # rounds.json entry for `next_round` (Standard only): groups, counts, rbe, ... or None
     round_composition: Optional[dict]
     bloons: Optional[list] = None   # [detect.Bloon(x, y, kind, count, area, dist)]; None = no background yet
+    slots: list = field(default_factory=list)   # tid or None per tower slot (stable while the tower lives)
     extra: dict = field(default_factory=dict)
+
+    def to_vector(self, spec=None):
+        """float32 (D,): obsvec.vector; obsvec.layout() names the parts."""
+        from . import obsvec
+        return obsvec.vector(self, spec)
+
+    def grid_image(self, spec=None):
+        """float32 (C, ny, nx) of the play area: obsvec.grid; obsvec.grid_channels() names them."""
+        from . import obsvec
+        return obsvec.grid(self, spec)
 
 
 def class_radius(cls):

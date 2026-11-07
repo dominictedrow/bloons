@@ -112,12 +112,12 @@ Every action returns `ActionResult(ok: bool, reason: str)` and doesn't raise on 
 - [x] 5.1 `GameState` dataclass + `observe()` (HUD, round state, outcome, registry, masks, path) — *`bloons/observe.py` + `BloonsHarness.observe()`; also upgrade options (price table), ability estimates, `rounds_done` / `next_round` / `round_composition`*
 - [x] 5.2 Bloon detector (HSV classes first; small YOLO only if HSV falls short) + `round_composition` — *`bloons/detect.py`, HSV was enough; stored background for Monkey Meadow only (the other 3 maps need one: Sandbox is locked there)*
 - [x] 5.3 `upgrade_options` (table + rules + panel OCR verification) — *`bloons/panel.py` reads row state / price / tier pips; `h.check_upgrades(tid)`, `upgrade()` reads the row before buying; `UpgradeOption.checked`. Live sweep: 17 tower kinds match the table on every tier; Sniper / Spike / Super / Tack / Wizard / Skywarden not swept yet*
-- [ ] 5.4 Ability bar reading (ready + cooldown fraction)
-- [ ] 5.5 Range: table value + circle-measure verification
-- [ ] 5.6 `GameState.to_vector()` + grid image
+- [x] 5.4 Ability bar reading (ready + cooldown fraction) — *`bloons/abilitybar.py`: the red-orange cooldown ring's arc (it shrinks clockwise to 12 o'clock) → remaining fraction, ±0.02 vs a fitted line; `BarFilter` holds rings that vanish mid-cooldown; `h.sync_abilities` resets the estimates from every read (observe, use_ability, use_ability_of); uses confirmed by the full ring. Keys 1–3 confirmed*
+- [x] 5.5 Range: table value + circle-measure verification — *`bloons/rangecircle.py` + `h.measure_range(tid)` (→ `TowerState.range_measured`, `h.range_mismatches`); 29 live reads within 0.07 units of the table except Super Monkey path 2 (+3). Range circles are ellipses (ground seen at a tilt, y × 0.866): `range_norm` fixed; placement's y unit is still the old one*
+- [x] 5.6 `GameState.to_vector()` + grid image — *`bloons/obsvec.py`, layout in `data/obs.json`: 1,200-float vector (global, map/difficulty/mode one-hots, next round's composition, bloons seen + lead progress, 20 tower slots × 53, hero, 8 ability slots) + 8 × 16 × 24 grid (path, 4 placeable classes, towers, ranges, bloons); towers keep a stable slot (`h.slots`); `obsvec.cell_centre` for grid actions*
 
 ## Phase 6 — Scripted baseline
-- [ ] 6.1 Hand-written strategy using only the harness API
+- [ ] 6.1 Hand-written strategy using only the harness API — *Dom writes it (2026-11-06)*
 - [ ] 6.2 Beat Easy on all 4 maps with outcome == "win" detected. Log (obs, action) pairs for BC
 
 ## Phase 7 — RL (Dom's)
